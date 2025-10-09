@@ -1,7 +1,10 @@
 from sqlmodel import SQLModel, Field, Relationship
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID, uuid4
+
+from typing import TYPE_CHECKING
+
 
 
 class User(SQLModel, table=True):
@@ -12,3 +15,9 @@ class User(SQLModel, table=True):
     
     # Relationships
     entries: List["Entry"] = Relationship(back_populates="user")
+    encryption_key: Optional["EncryptionKey"] = Relationship(back_populates="user")
+
+if TYPE_CHECKING:
+    from .entry import Entry
+    from .encryption_key import EncryptionKey
+

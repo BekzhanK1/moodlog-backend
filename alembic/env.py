@@ -1,16 +1,17 @@
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-from alembic import context
 import os
 import sys
 
-# Add the app directory to the Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from sqlalchemy import engine_from_config
+from sqlalchemy import pool
 
-# Import your models
-from app.models import User, Entry
-from app.core.config import settings
+from alembic import context
+from sqlmodel import SQLModel
+
+# Make app importable
+sys.path.append(os.path.dirname(os.path.abspath(os.path.join(__file__, os.pardir))))
+from app.core.config import settings  # type: ignore
+from app.models import *  # noqa: F401,F403 - ensure all models are imported
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -23,16 +24,10 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-target_metadata = User.metadata
-
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
+target_metadata = SQLModel.metadata
 
 
-def get_url():
-    """Get database URL from settings"""
+def get_url() -> str:
     return settings.get_database_url
 
 
@@ -54,6 +49,9 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        compare_type=True,
+        compare_server_default=True,
+        render_as_batch=url.startswith("sqlite"),
     )
 
     with context.begin_transaction():
@@ -67,9 +65,8 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    configuration = config.get_section(config.config_ini_section)
+    configuration = config.get_section(config.config_ini_section, {})
     configuration["sqlalchemy.url"] = get_url()
-    
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",
@@ -77,8 +74,13 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        is_sqlite = connection.dialect.name == "sqlite"
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+            compare_server_default=True,
+            render_as_batch=is_sqlite,
         )
 
         with context.begin_transaction():
