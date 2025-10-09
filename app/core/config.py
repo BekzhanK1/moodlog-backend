@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     
     # Environment
     environment: str = "development"
+
+    master_encryption_key: str = "your-master-encryption-key-change-in-production"
     
     class Config:
         env_file = ".env"

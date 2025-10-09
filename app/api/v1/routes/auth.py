@@ -8,6 +8,8 @@ from app.core.deps import get_current_user
 from datetime import timedelta
 from app.core.config import settings
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from app.crud import user as user_crud
+from app.services.encryption_key_service import create_and_store_wrapped_key
 
 router = APIRouter()
 refresh_security = HTTPBearer()
@@ -17,8 +19,7 @@ refresh_security = HTTPBearer()
 def register(user_data: UserCreate, session: Session = Depends(get_session)):
     """Register a new user"""
     # Check if user already exists
-    statement = select(User).where(User.email == user_data.email)
-    existing_user = session.exec(statement).first()
+    existing_user = user_crud.get_user_by_email(session, email=user_data.email)
     
     if existing_user:
         raise HTTPException(
@@ -28,14 +29,13 @@ def register(user_data: UserCreate, session: Session = Depends(get_session)):
     
     # Create new user
     hashed_password = get_password_hash(user_data.password)
-    user = User(
+    user = user_crud.create_user(
+        session,
         email=user_data.email,
-        hashed_password=hashed_password
+        hashed_password=hashed_password,
     )
-    
-    session.add(user)
-    session.commit()
-    session.refresh(user)
+    # Generate and persist per-user encryption key (wrapped by master key)
+    create_and_store_wrapped_key(session, user_id=user.id)
     
     return user
 
@@ -44,8 +44,7 @@ def register(user_data: UserCreate, session: Session = Depends(get_session)):
 def login(user_credentials: UserLogin, session: Session = Depends(get_session)):
     """Login user and return JWT tokens"""
     # Find user by email
-    statement = select(User).where(User.email == user_credentials.email)
-    user = session.exec(statement).first()
+    user = user_crud.get_user_by_email(session, email=user_credentials.email)
     
     if not user or not verify_password(user_credentials.password, user.hashed_password):
         raise HTTPException(
