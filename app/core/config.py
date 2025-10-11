@@ -1,29 +1,30 @@
-from pydantic_settings import BaseSettings
+from dotenv import load_dotenv
 from typing import Optional
 import os
 
+# Load environment variables from .env file
+load_dotenv()
 
-class Settings(BaseSettings):
-    # Database settings
-    database_url: str = "sqlite:///./moodlog.db"
-    database_url_prod: Optional[str] = None
-    
-    # JWT settings
-    secret_key: str = "your-secret-key-change-in-production"
-    algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
-    
-    # CORS settings
-    frontend_origin: str = "http://localhost:3000"
-    
-    # Environment
-    environment: str = "development"
 
-    master_encryption_key: str = "your-master-encryption-key-change-in-production"
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+class Settings:
+    def __init__(self):
+        # Database settings
+        self.database_url: str = os.getenv("DATABASE_URL", "sqlite:///./moodlog.db")
+        self.database_url_prod: Optional[str] = os.getenv("DATABASE_URL_PROD")
+        
+        # JWT settings
+        self.secret_key: str = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
+        self.algorithm: str = os.getenv("ALGORITHM", "HS256")
+        self.access_token_expire_minutes: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+        
+        # CORS settings
+        self.frontend_origin: str = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
+        
+        # Environment
+        self.environment: str = os.getenv("ENVIRONMENT", "development")
+
+        self.master_encryption_key: str = os.getenv("MASTER_ENCRYPTION_KEY", "your-master-encryption-key-change-in-production")
+        self.hf_token: str = os.getenv("HF_TOKEN", "your-huggingface-token")
     
     @property
     def get_database_url(self) -> str:

@@ -77,3 +77,6 @@ moodlog.db
 # Alembic (keep migrations tracked; don't ignore versions)
 # alembic/
 # alembic/versions/
+
+models_cache/
+.cache/

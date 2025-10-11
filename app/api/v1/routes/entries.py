@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlmodel import Session, select
 from typing import List, Optional
+from uuid import UUID
 from datetime import datetime
 from app.db.session import get_session
 from app.models import Entry, User
@@ -8,20 +9,78 @@ from app.schemas import EntryCreate, EntryUpdate, EntryResponse, EntryListRespon
 from app.core.deps import get_current_user
 import math
 from app.crud import entry as entry_crud
-from app.services.encryption_key_service import get_user_data_key
-from app.core.crypto import encrypt_data, decrypt_data
+        
 
 router = APIRouter()
+
+_encryption_service = None
+_crypto_functions = None
+_analysis_service = None
+
+def get_encryption_service():
+    """Lazy load encryption service"""
+    global _encryption_service
+    if _encryption_service is None:
+        from app.services.encryption_key_service import get_user_data_key
+        _encryption_service = get_user_data_key
+    return _encryption_service
+
+def get_crypto_functions():
+    """Lazy load crypto functions"""
+    global _crypto_functions
+    if _crypto_functions is None:
+        from app.core.crypto import encrypt_data, decrypt_data
+        _crypto_functions = (encrypt_data, decrypt_data)
+    return _crypto_functions
+
+def get_analysis_service():
+    """Lazy load analysis service"""
+    global _analysis_service
+    if _analysis_service is None:
+        from app.services.entry_analysis_service import MoodAnalysisService
+        _analysis_service = MoodAnalysisService()
+    return _analysis_service
+
+
+async def analyze_entry_background(entry_id: UUID, content: str, user_id: UUID):
+    """Background task to analyze entry content and update the database"""
+    try:
+        # Use lazy-loaded analysis service
+        mood_analysis_service = get_analysis_service()
+        
+        # Perform AI analysis
+        analysis = mood_analysis_service.analyze_entry(content)
+        
+        # Create database session directly
+        from sqlmodel import Session
+        from app.db.session import engine
+        
+        with Session(engine) as session:
+            entry = entry_crud.get_entry_by_id(session, entry_id=entry_id, user_id=user_id)
+            if entry:
+                entry.mood_rating = analysis["mood_rating"]
+                entry.tags = analysis["tags"] if not entry.tags else entry.tags  # Keep user tags if provided
+                entry.ai_processed_at = datetime.utcnow()
+                session.commit()
+                print(f"✅ AI analysis completed for entry {entry_id}")
+            else:
+                print(f"❌ Entry {entry_id} not found for analysis")
+    except Exception as e:
+        print(f"❌ Error in background analysis for entry {entry_id}: {e}")
 
 
 @router.post("/", response_model=EntryResponse, status_code=status.HTTP_201_CREATED)
 def create_entry(
     entry_data: EntryCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
     """Create a new diary entry"""
-    # Encrypt content with user's data key
+    # Use lazy-loaded services
+    get_user_data_key = get_encryption_service()
+    encrypt_data, decrypt_data = get_crypto_functions()
+    
     data_key = get_user_data_key(session, user_id=current_user.id)
     encrypted_content = encrypt_data(entry_data.content, data_key)
     encrypted_title = encrypt_data(entry_data.title, data_key) if entry_data.title is not None else None
@@ -34,15 +93,19 @@ def create_entry(
         tags=entry_data.tags,
     )
     
-    # TODO: AI - Trigger AI analysis after entry creation
-    # await trigger_ai_analysis(entry.id)
+    background_tasks.add_task(
+        analyze_entry_background,
+        entry.id,
+        entry_data.content,
+        current_user.id
+    )
     
     return EntryResponse(
         id=entry.id,
         user_id=entry.user_id,
         title=entry_data.title,
         content=entry_data.content,
-        mood_rating=entry.mood_rating,
+        mood_rating=entry.mood_rating,  
         tags=entry.tags,
         created_at=entry.created_at,
         updated_at=entry.updated_at,
@@ -58,7 +121,10 @@ def get_entries(
     session: Session = Depends(get_session)
 ):
     """Get paginated list of user's diary entries"""
-    # Calculate offset
+    # Use lazy-loaded services
+    get_user_data_key = get_encryption_service()
+    encrypt_data, decrypt_data = get_crypto_functions()
+    
     offset = (page - 1) * per_page
     
     entries, total = entry_crud.list_entries(
@@ -69,7 +135,6 @@ def get_entries(
     )
     total_pages = math.ceil(total / per_page) if per_page else 1
     
-    # Decrypt content for response
     data_key = get_user_data_key(session, user_id=current_user.id)
     response_entries = [
         EntryResponse(
@@ -97,11 +162,15 @@ def get_entries(
 
 @router.get("/{entry_id}", response_model=EntryResponse)
 def get_entry(
-    entry_id: str,
+    entry_id: UUID,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
     """Get a specific diary entry by ID"""
+    # Use lazy-loaded services
+    get_user_data_key = get_encryption_service()
+    encrypt_data, decrypt_data = get_crypto_functions()
+    
     entry = entry_crud.get_entry_by_id(
         session,
         user_id=current_user.id,
@@ -114,7 +183,6 @@ def get_entry(
             detail="Entry not found"
         )
     
-    # Decrypt content for response
     data_key = get_user_data_key(session, user_id=current_user.id)
     return EntryResponse(
         id=entry.id,
@@ -131,13 +199,18 @@ def get_entry(
 
 @router.put("/{entry_id}", response_model=EntryResponse)
 def update_entry(
-    entry_id: str,
+    entry_id: UUID,
     entry_data: EntryUpdate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
     """Update a diary entry (full/replace semantics)"""
-    # Encrypt new content if provided
+
+    # Import encryption functions lazily
+    from app.services.encryption_key_service import get_user_data_key
+    from app.core.crypto import encrypt_data, decrypt_data
+    
     encrypted_content = None
     if entry_data.content is not None:
         data_key = get_user_data_key(session, user_id=current_user.id)
@@ -163,10 +236,14 @@ def update_entry(
             detail="Entry not found"
         )
     
-    # TODO: AI - Trigger AI re-analysis after entry update
-    # await trigger_ai_analysis(entry.id)
+    if entry_data.content is not None:
+        background_tasks.add_task(
+            analyze_entry_background,
+            entry.id,
+            entry_data.content,
+            current_user.id
+        )
     
-    # Decrypt content for response
     data_key = get_user_data_key(session, user_id=current_user.id)
     return EntryResponse(
         id=entry.id,
@@ -183,13 +260,17 @@ def update_entry(
 
 @router.patch("/{entry_id}", response_model=EntryResponse)
 def patch_entry(
-    entry_id: str,
+    entry_id: UUID,
     entry_data: EntryUpdate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
     """Partially update a diary entry (PATCH semantics)"""
-    # Encrypt new content if provided
+    # Import encryption functions lazily
+    from app.services.encryption_key_service import get_user_data_key
+    from app.core.crypto import encrypt_data, decrypt_data
+    
     encrypted_content = None
     if entry_data.content is not None:
         data_key = get_user_data_key(session, user_id=current_user.id)
@@ -215,10 +296,14 @@ def patch_entry(
             detail="Entry not found"
         )
     
-    # TODO: AI - Trigger AI re-analysis after entry partial update
-    # await trigger_ai_analysis(entry.id)
+    if entry_data.content is not None:
+        background_tasks.add_task(
+            analyze_entry_background,
+            entry.id,
+            entry_data.content,
+            current_user.id
+        )
     
-    # Decrypt content for response
     data_key = get_user_data_key(session, user_id=current_user.id)
     return EntryResponse(
         id=entry.id,
@@ -235,7 +320,7 @@ def patch_entry(
 
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_entry(
-    entry_id: str,
+    entry_id: UUID,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
@@ -260,24 +345,48 @@ def delete_entry(
     return None
 
 
-# TODO: AI - Placeholder functions for future AI features
-async def trigger_ai_analysis(entry_id: str):
+# AI Analysis Functions
+def trigger_ai_analysis(entry_id: str):
     """Trigger AI analysis for a diary entry"""
-    # This will be implemented in Phase 2
-    # Will analyze sentiment (mood_rating) and extract themes (tags)
-    pass
+    # Import encryption functions lazily
+    from app.services.encryption_key_service import get_user_data_key
+    from app.core.crypto import decrypt_data
+    from app.services.entry_analysis_service import MoodAnalysisService
+    
+    mood_analysis_service = MoodAnalysisService()
+    
+    with get_session() as session:
+        entry = entry_crud.get_entry_by_id(session, entry_id=entry_id)
+        if not entry:
+            return
+        
+        
+        data_key = get_user_data_key(session, user_id=entry.user_id)
+        decrypted_content = decrypt_data(entry.encrypted_content, data_key)
+        
+        analysis = mood_analysis_service.analyze_entry(decrypted_content)
+        
+        entry.mood_rating = analysis["mood_rating"]
+        entry.tags = analysis["tags"]
+        entry.ai_processed_at = datetime.utcnow()
+        
+        session.commit()
 
 
-async def analyze_sentiment(content: str) -> float:
-    """Analyze sentiment of diary entry content"""
-    # TODO: AI - Implement sentiment analysis using NLP models
-    # Returns float between -1.0 (very negative) and 1.0 (very positive)
-    pass
+def analyze_sentiment(content: str) -> float:
+    """Analyze sentiment of diary entry content
+    Returns float between -2.0 (very negative) and 2.0 (very positive)
+    """
+    from app.services.entry_analysis_service import MoodAnalysisService
+    mood_analysis_service = MoodAnalysisService()
+    analysis = mood_analysis_service.analyze_entry(content)
+    return analysis["mood_rating"]
 
 
-async def extract_themes(content: str) -> List[str]:
-    """Extract key themes and topics from diary entry"""
-    # TODO: AI - Implement theme extraction using NLP
-    # Returns list of key themes/topics from the content
-    pass
+def extract_themes(content: str) -> List[str]:
+    """Extract key themes and topics from diary entry"""    
+    from app.services.entry_analysis_service import MoodAnalysisService
+    mood_analysis_service = MoodAnalysisService()
+    analysis = mood_analysis_service.analyze_entry(content)
+    return analysis["tags"]
 
