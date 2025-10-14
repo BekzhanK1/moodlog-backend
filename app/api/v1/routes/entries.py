@@ -9,6 +9,8 @@ from app.schemas import EntryCreate, EntryUpdate, EntryResponse, EntryListRespon
 from app.core.deps import get_current_user
 import math
 from app.crud import entry as entry_crud
+from fastapi import File, UploadFile
+from app.services.audio_transcription_service import AudioTranscriptionService
         
 
 router = APIRouter()
@@ -16,6 +18,14 @@ router = APIRouter()
 _encryption_service = None
 _crypto_functions = None
 _analysis_service = None
+_audio_service = None
+
+def get_audio_service():
+    """Lazy load audio transcription service"""
+    global _audio_service
+    if _audio_service is None:
+        _audio_service = AudioTranscriptionService()
+    return _audio_service
 
 def get_encryption_service():
     """Lazy load encryption service"""
@@ -343,6 +353,85 @@ def delete_entry(
     )
     
     return None
+
+
+@router.post("/from-audio", response_model=EntryResponse, status_code=status.HTTP_201_CREATED)
+async def create_entry_from_audio(
+    background_tasks: BackgroundTasks,
+    audio_file: UploadFile = File(..., description="Audio file to transcribe (MP3, WAV, etc.)"),
+    title: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    """
+    Create a new diary entry from audio file.
+    
+    The audio file will be transcribed to text using Whisper AI,
+    then treated as a regular text entry with AI analysis.
+    """
+    # Get audio service
+    audio_service = get_audio_service()
+    
+    # Validate audio file
+    if not audio_service.validate_audio_file(audio_file):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid audio file type. Supported formats: MP3, WAV, M4A, OGG, WEBM"
+        )
+    
+    # Transcribe audio to text
+    try:
+        content = await audio_service.transcribe_audio(audio_file)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Audio transcription failed: {str(e)}"
+        )
+    
+    # Validate transcription result
+    if not content or not content.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No speech detected in audio file. Please check the audio quality."
+        )
+    
+    # Now treat the transcribed text as a regular entry
+    # Use existing entry creation logic
+    get_user_data_key = get_encryption_service()
+    encrypt_data, decrypt_data = get_crypto_functions()
+    
+    data_key = get_user_data_key(session, user_id=current_user.id)
+    encrypted_content = encrypt_data(content, data_key)
+    encrypted_title = encrypt_data(title, data_key) if title is not None else None
+
+    entry = entry_crud.create_entry(
+        session,
+        user_id=current_user.id,
+        title=encrypted_title,
+        content=encrypted_content,
+        tags=tags,
+    )
+    
+    # Background AI analysis (sentiment + theme extraction)
+    background_tasks.add_task(
+        analyze_entry_background,
+        entry.id,
+        content,
+        current_user.id
+    )
+    
+    return EntryResponse(
+        id=entry.id,
+        user_id=entry.user_id,
+        title=title,
+        content=content,
+        mood_rating=entry.mood_rating,  
+        tags=entry.tags,
+        created_at=entry.created_at,
+        updated_at=entry.updated_at,
+        ai_processed_at=entry.ai_processed_at,
+    )
 
 
 # AI Analysis Functions

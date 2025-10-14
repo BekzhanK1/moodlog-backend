@@ -25,6 +25,7 @@ class Settings:
 
         self.master_encryption_key: str = os.getenv("MASTER_ENCRYPTION_KEY", "your-master-encryption-key-change-in-production")
         self.hf_token: str = os.getenv("HF_TOKEN", "your-huggingface-token")
+        self.openai_api_key: str = os.getenv("OPENAI_API_KEY", "your-openai-api-key")
     
     @property
     def get_database_url(self) -> str:
