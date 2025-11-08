@@ -11,7 +11,7 @@ import math
 from app.crud import entry as entry_crud
 from fastapi import File, UploadFile
 from app.services.audio_transcription_service import AudioTranscriptionService
-        
+
 
 router = APIRouter()
 
@@ -20,12 +20,14 @@ _crypto_functions = None
 _analysis_service = None
 _audio_service = None
 
+
 def get_audio_service():
     """Lazy load audio transcription service"""
     global _audio_service
     if _audio_service is None:
         _audio_service = AudioTranscriptionService()
     return _audio_service
+
 
 def get_encryption_service():
     """Lazy load encryption service"""
@@ -35,6 +37,7 @@ def get_encryption_service():
         _encryption_service = get_user_data_key
     return _encryption_service
 
+
 def get_crypto_functions():
     """Lazy load crypto functions"""
     global _crypto_functions
@@ -42,6 +45,7 @@ def get_crypto_functions():
         from app.core.crypto import encrypt_data, decrypt_data
         _crypto_functions = (encrypt_data, decrypt_data)
     return _crypto_functions
+
 
 def get_analysis_service():
     """Lazy load analysis service"""
@@ -57,19 +61,27 @@ async def analyze_entry_background(entry_id: UUID, content: str, user_id: UUID):
     try:
         # Use lazy-loaded analysis service
         mood_analysis_service = get_analysis_service()
-        
+
         # Perform AI analysis
         analysis = mood_analysis_service.analyze_entry(content)
-        
+
         # Create database session directly
         from sqlmodel import Session
         from app.db.session import engine
-        
+
         with Session(engine) as session:
-            entry = entry_crud.get_entry_by_id(session, entry_id=entry_id, user_id=user_id)
+            entry = entry_crud.get_entry_by_id(
+                session, entry_id=entry_id, user_id=user_id)
             if entry:
+                # Skip analysis if entry is a draft
+                if entry.is_draft:
+                    print(
+                        f"⏭️ Skipping AI analysis for draft entry {entry_id}")
+                    return
+
                 entry.mood_rating = analysis["mood_rating"]
-                entry.tags = analysis["tags"] if not entry.tags else entry.tags  # Keep user tags if provided
+                # Keep user tags if provided
+                entry.tags = analysis["tags"] if not entry.tags else entry.tags
                 entry.ai_processed_at = datetime.utcnow()
                 session.commit()
                 print(f"✅ AI analysis completed for entry {entry_id}")
@@ -90,10 +102,11 @@ def create_entry(
     # Use lazy-loaded services
     get_user_data_key = get_encryption_service()
     encrypt_data, decrypt_data = get_crypto_functions()
-    
+
     data_key = get_user_data_key(session, user_id=current_user.id)
     encrypted_content = encrypt_data(entry_data.content, data_key)
-    encrypted_title = encrypt_data(entry_data.title, data_key) if entry_data.title is not None else None
+    encrypted_title = encrypt_data(
+        entry_data.title, data_key) if entry_data.title is not None else None
 
     entry = entry_crud.create_entry(
         session,
@@ -101,22 +114,26 @@ def create_entry(
         title=encrypted_title,
         content=encrypted_content,
         tags=entry_data.tags,
+        is_draft=entry_data.is_draft,
     )
-    
-    background_tasks.add_task(
-        analyze_entry_background,
-        entry.id,
-        entry_data.content,
-        current_user.id
-    )
-    
+
+    # Only analyze if entry is not a draft
+    if not entry_data.is_draft:
+        background_tasks.add_task(
+            analyze_entry_background,
+            entry.id,
+            entry_data.content,
+            current_user.id
+        )
+
     return EntryResponse(
         id=entry.id,
         user_id=entry.user_id,
         title=entry_data.title,
         content=entry_data.content,
-        mood_rating=entry.mood_rating,  
+        mood_rating=entry.mood_rating,
         tags=entry.tags,
+        is_draft=entry.is_draft,
         created_at=entry.created_at,
         updated_at=entry.updated_at,
         ai_processed_at=entry.ai_processed_at,
@@ -134,9 +151,9 @@ def get_entries(
     # Use lazy-loaded services
     get_user_data_key = get_encryption_service()
     encrypt_data, decrypt_data = get_crypto_functions()
-    
+
     offset = (page - 1) * per_page
-    
+
     entries, total = entry_crud.list_entries(
         session,
         user_id=current_user.id,
@@ -144,16 +161,18 @@ def get_entries(
         limit=per_page,
     )
     total_pages = math.ceil(total / per_page) if per_page else 1
-    
+
     data_key = get_user_data_key(session, user_id=current_user.id)
     response_entries = [
         EntryResponse(
             id=e.id,
             user_id=e.user_id,
-            title=decrypt_data(e.title, data_key) if e.title is not None else None,
+            title=decrypt_data(
+                e.title, data_key) if e.title is not None else None,
             content=decrypt_data(e.encrypted_content, data_key),
             mood_rating=e.mood_rating,
             tags=e.tags,
+            is_draft=e.is_draft,
             created_at=e.created_at,
             updated_at=e.updated_at,
             ai_processed_at=e.ai_processed_at,
@@ -180,27 +199,29 @@ def get_entry(
     # Use lazy-loaded services
     get_user_data_key = get_encryption_service()
     encrypt_data, decrypt_data = get_crypto_functions()
-    
+
     entry = entry_crud.get_entry_by_id(
         session,
         user_id=current_user.id,
         entry_id=entry_id,
     )
-    
+
     if not entry:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Entry not found"
         )
-    
+
     data_key = get_user_data_key(session, user_id=current_user.id)
     return EntryResponse(
         id=entry.id,
         user_id=entry.user_id,
-        title=decrypt_data(entry.title, data_key) if entry.title is not None else None,
+        title=decrypt_data(
+            entry.title, data_key) if entry.title is not None else None,
         content=decrypt_data(entry.encrypted_content, data_key),
         mood_rating=entry.mood_rating,
         tags=entry.tags,
+        is_draft=entry.is_draft,
         created_at=entry.created_at,
         updated_at=entry.updated_at,
         ai_processed_at=entry.ai_processed_at,
@@ -220,12 +241,12 @@ def update_entry(
     # Import encryption functions lazily
     from app.services.encryption_key_service import get_user_data_key
     from app.core.crypto import encrypt_data, decrypt_data
-    
+
     encrypted_content = None
     if entry_data.content is not None:
         data_key = get_user_data_key(session, user_id=current_user.id)
         encrypted_content = encrypt_data(entry_data.content, data_key)
-    
+
     encrypted_title = None
     if entry_data.title is not None:
         data_key = get_user_data_key(session, user_id=current_user.id)
@@ -245,23 +266,26 @@ def update_entry(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Entry not found"
         )
-    
-    if entry_data.content is not None:
+
+    # Only analyze if entry is not a draft and content was updated
+    if entry_data.content is not None and not entry.is_draft:
         background_tasks.add_task(
             analyze_entry_background,
             entry.id,
             entry_data.content,
             current_user.id
         )
-    
+
     data_key = get_user_data_key(session, user_id=current_user.id)
     return EntryResponse(
         id=entry.id,
         user_id=entry.user_id,
-        title=decrypt_data(entry.title, data_key) if entry.title is not None else None,
+        title=decrypt_data(
+            entry.title, data_key) if entry.title is not None else None,
         content=decrypt_data(entry.encrypted_content, data_key),
         mood_rating=entry.mood_rating,
         tags=entry.tags,
+        is_draft=entry.is_draft,
         created_at=entry.created_at,
         updated_at=entry.updated_at,
         ai_processed_at=entry.ai_processed_at,
@@ -280,15 +304,29 @@ def patch_entry(
     # Import encryption functions lazily
     from app.services.encryption_key_service import get_user_data_key
     from app.core.crypto import encrypt_data, decrypt_data
-    
+
+    # Get entry before updating to check if it was a draft
+    existing_entry = entry_crud.get_entry_by_id(
+        session,
+        user_id=current_user.id,
+        entry_id=entry_id,
+    )
+
+    if existing_entry is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Entry not found"
+        )
+
+    was_draft = existing_entry.is_draft
+    data_key = get_user_data_key(session, user_id=current_user.id)
+
     encrypted_content = None
     if entry_data.content is not None:
-        data_key = get_user_data_key(session, user_id=current_user.id)
         encrypted_content = encrypt_data(entry_data.content, data_key)
 
     encrypted_title = None
     if entry_data.title is not None:
-        data_key = get_user_data_key(session, user_id=current_user.id)
         encrypted_title = encrypt_data(entry_data.title, data_key)
 
     entry = entry_crud.update_entry(
@@ -298,30 +336,45 @@ def patch_entry(
         title=encrypted_title,
         content=encrypted_content,
         tags=entry_data.tags,
+        is_draft=entry_data.is_draft,
     )
 
-    if entry is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Entry not found"
-        )
-    
-    if entry_data.content is not None:
+    # Determine if we should trigger AI analysis
+    should_analyze = False
+    content_for_analysis = None
+
+    # Case 1: Entry was changed from draft to non-draft
+    if was_draft and entry_data.is_draft is False:
+        should_analyze = True
+        # Use updated content if provided, otherwise decrypt existing content
+        if entry_data.content is not None:
+            content_for_analysis = entry_data.content
+        else:
+            content_for_analysis = decrypt_data(
+                existing_entry.encrypted_content, data_key)
+
+    # Case 2: Content was updated and entry is not a draft
+    elif entry_data.content is not None and not entry.is_draft:
+        should_analyze = True
+        content_for_analysis = entry_data.content
+
+    if should_analyze and content_for_analysis:
         background_tasks.add_task(
             analyze_entry_background,
             entry.id,
-            entry_data.content,
+            content_for_analysis,
             current_user.id
         )
-    
-    data_key = get_user_data_key(session, user_id=current_user.id)
+
     return EntryResponse(
         id=entry.id,
         user_id=entry.user_id,
-        title=decrypt_data(entry.title, data_key) if entry.title is not None else None,
+        title=decrypt_data(
+            entry.title, data_key) if entry.title is not None else None,
         content=decrypt_data(entry.encrypted_content, data_key),
         mood_rating=entry.mood_rating,
         tags=entry.tags,
+        is_draft=entry.is_draft,
         created_at=entry.created_at,
         updated_at=entry.updated_at,
         ai_processed_at=entry.ai_processed_at,
@@ -351,14 +404,15 @@ def delete_entry(
         user_id=current_user.id,
         entry_id=entry_id,
     )
-    
+
     return None
 
 
 @router.post("/from-audio", response_model=EntryResponse, status_code=status.HTTP_201_CREATED)
 async def create_entry_from_audio(
     background_tasks: BackgroundTasks,
-    audio_file: UploadFile = File(..., description="Audio file to transcribe (MP3, WAV, etc.)"),
+    audio_file: UploadFile = File(...,
+                                  description="Audio file to transcribe (MP3, WAV, etc.)"),
     title: Optional[str] = None,
     tags: Optional[List[str]] = None,
     current_user: User = Depends(get_current_user),
@@ -366,20 +420,20 @@ async def create_entry_from_audio(
 ):
     """
     Create a new diary entry from audio file.
-    
+
     The audio file will be transcribed to text using Whisper AI,
     then treated as a regular text entry with AI analysis.
     """
     # Get audio service
     audio_service = get_audio_service()
-    
+
     # Validate audio file
     if not audio_service.validate_audio_file(audio_file):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid audio file type. Supported formats: MP3, WAV, M4A, OGG, WEBM"
         )
-    
+
     # Transcribe audio to text
     try:
         content = await audio_service.transcribe_audio(audio_file)
@@ -388,22 +442,23 @@ async def create_entry_from_audio(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Audio transcription failed: {str(e)}"
         )
-    
+
     # Validate transcription result
     if not content or not content.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No speech detected in audio file. Please check the audio quality."
         )
-    
+
     # Now treat the transcribed text as a regular entry
     # Use existing entry creation logic
     get_user_data_key = get_encryption_service()
     encrypt_data, decrypt_data = get_crypto_functions()
-    
+
     data_key = get_user_data_key(session, user_id=current_user.id)
     encrypted_content = encrypt_data(content, data_key)
-    encrypted_title = encrypt_data(title, data_key) if title is not None else None
+    encrypted_title = encrypt_data(
+        title, data_key) if title is not None else None
 
     entry = entry_crud.create_entry(
         session,
@@ -412,7 +467,7 @@ async def create_entry_from_audio(
         content=encrypted_content,
         tags=tags,
     )
-    
+
     # Background AI analysis (sentiment + theme extraction)
     background_tasks.add_task(
         analyze_entry_background,
@@ -420,13 +475,13 @@ async def create_entry_from_audio(
         content,
         current_user.id
     )
-    
+
     return EntryResponse(
         id=entry.id,
         user_id=entry.user_id,
         title=title,
         content=content,
-        mood_rating=entry.mood_rating,  
+        mood_rating=entry.mood_rating,
         tags=entry.tags,
         created_at=entry.created_at,
         updated_at=entry.updated_at,
@@ -441,24 +496,28 @@ def trigger_ai_analysis(entry_id: str):
     from app.services.encryption_key_service import get_user_data_key
     from app.core.crypto import decrypt_data
     from app.services.entry_analysis_service import MoodAnalysisService
-    
+
     mood_analysis_service = MoodAnalysisService()
-    
+
     with get_session() as session:
         entry = entry_crud.get_entry_by_id(session, entry_id=entry_id)
+        print(f"Entry: {entry}")
+        print(f"Entry is draft: {entry.is_draft}")
         if not entry:
             return
-        
-        
+
+        if entry.is_draft:
+            return
+
         data_key = get_user_data_key(session, user_id=entry.user_id)
         decrypted_content = decrypt_data(entry.encrypted_content, data_key)
-        
+
         analysis = mood_analysis_service.analyze_entry(decrypted_content)
-        
+
         entry.mood_rating = analysis["mood_rating"]
         entry.tags = analysis["tags"]
         entry.ai_processed_at = datetime.utcnow()
-        
+
         session.commit()
 
 
@@ -473,9 +532,8 @@ def analyze_sentiment(content: str) -> float:
 
 
 def extract_themes(content: str) -> List[str]:
-    """Extract key themes and topics from diary entry"""    
+    """Extract key themes and topics from diary entry"""
     from app.services.entry_analysis_service import MoodAnalysisService
     mood_analysis_service = MoodAnalysisService()
     analysis = mood_analysis_service.analyze_entry(content)
     return analysis["tags"]
-

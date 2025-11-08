@@ -13,7 +13,7 @@ class ThemeExtractionService:
     def lowercase_list(self, list: List[str]) -> List[str]:
         return [item.lower() for item in list]
 
-    def extract_themes(self, text: str, max_themes: int = None, min_similarity: float = 0.3) -> List[str]:
+    def extract_themes(self, text: str, max_themes: int = None) -> List[str]:
         """Extract themes from diary entry text using OpenAI LLM"""
         # Dynamically determine max_themes based on text length
         if max_themes is None:
@@ -73,7 +73,7 @@ class ThemeExtractionService:
                     }
                 ],
                 response_format={"type": "json_object"},
-                temperature=0.5,  # Slightly higher for more creative theme generation
+                temperature=0.3,  # Slightly higher for more creative theme generation
                 max_tokens=300
             )
 

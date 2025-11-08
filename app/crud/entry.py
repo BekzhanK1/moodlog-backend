@@ -14,6 +14,7 @@ def create_entry(
     title: Optional[str],
     content: str,
     tags: Optional[List[str]],
+    is_draft: Optional[bool] = False,
 ) -> Entry:
     """Create a new entry for a user.
 
@@ -26,6 +27,7 @@ def create_entry(
         title=title,
         encrypted_content=content,
         tags=tags,
+        is_draft=is_draft,
     )
     session.add(entry)
     session.commit()
@@ -34,7 +36,8 @@ def create_entry(
 
 
 def get_entry_by_id(session: Session, *, user_id: UUID, entry_id: UUID) -> Optional[Entry]:
-    statement = select(Entry).where(Entry.id == entry_id, Entry.user_id == user_id)
+    statement = select(Entry).where(
+        Entry.id == entry_id, Entry.user_id == user_id)
     return session.exec(statement).first()
 
 
@@ -67,6 +70,7 @@ def update_entry(
     title: Optional[str] = None,
     content: Optional[str] = None,
     tags: Optional[List[str]] = None,
+    is_draft: Optional[bool] = None,
 ) -> Optional[Entry]:
     entry = get_entry_by_id(session, user_id=user_id, entry_id=entry_id)
     if entry is None:
@@ -78,6 +82,8 @@ def update_entry(
         entry.encrypted_content = content
     if tags is not None:
         entry.tags = tags
+    if is_draft is not None:
+        entry.is_draft = is_draft
     entry.updated_at = datetime.utcnow()
 
     session.add(entry)
@@ -93,6 +99,3 @@ def delete_entry(session: Session, *, user_id: UUID, entry_id: UUID) -> bool:
     session.delete(entry)
     session.commit()
     return True
-
-
-
