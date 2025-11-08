@@ -26,6 +26,12 @@ class Settings:
         self.master_encryption_key: str = os.getenv("MASTER_ENCRYPTION_KEY", "your-master-encryption-key-change-in-production")
         self.hf_token: str = os.getenv("HF_TOKEN", "your-huggingface-token")
         self.openai_api_key: str = os.getenv("OPENAI_API_KEY", "your-openai-api-key")
+
+
+        # GOOGLE AUTH
+        self.google_client_id: str = os.getenv("GOOGLE_CLIENT_ID", "your-google-client-id")
+        self.google_client_secret: str = os.getenv("GOOGLE_CLIENT_SECRET", "your-google-client-secret")
+        self.google_redirect_uri: str = os.getenv("GOOGLE_REDIRECT_URI", "your-google-redirect-uri")
     
     @property
     def get_database_url(self) -> str:
