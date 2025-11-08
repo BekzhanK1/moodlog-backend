@@ -1,4 +1,7 @@
+import secrets
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
 from app.db.session import get_session
 from app.models import User
@@ -10,6 +13,7 @@ from app.core.config import settings
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.crud import user as user_crud
 from app.services.encryption_key_service import create_and_store_wrapped_key
+from app.services.oauth_service import google_oauth_service
 
 router = APIRouter()
 refresh_security = HTTPBearer()
@@ -93,3 +97,44 @@ def refresh_token(
 def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current user information"""
     return current_user
+
+
+@router.get("/google/login")
+def google_login():
+    """Redirect to Google OAuth login page"""
+    state = secrets.token_urlsafe(32)
+    authorization_url, _ = google_oauth_service.get_authorization_url(state=state)
+    print(authorization_url)
+    if not authorization_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to generate authorization URL"
+        )
+    return RedirectResponse(url=authorization_url, status_code=status.HTTP_302_FOUND)
+
+@router.get("/google/callback", response_model=Token)
+def google_callback(code: str, state: Optional[str] = None, session: Session = Depends(get_session)):
+    """Complete Google OAuth flow and return JWT tokens"""
+
+    try:
+        oauth_data = google_oauth_service.authenticate_user(code=code)
+        user_info = oauth_data["user_info"]
+
+        user = user_crud.create_user_from_google_user(session, google_id=user_info["id"], email=user_info["email"], name=user_info["name"], picture=user_info["picture"])
+
+        access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+        access_token = create_access_token(data={"sub": str(user.id)}, expires_delta=access_token_expires)
+        refresh_token = create_refresh_token(data={"sub": str(user.id)})
+
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "expires_in": int(access_token_expires.total_seconds()),
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
