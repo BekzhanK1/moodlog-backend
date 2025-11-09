@@ -1,5 +1,5 @@
+from datetime import datetime, timedelta, date, timezone
 from typing import List, Optional, Tuple
-from datetime import datetime
 from uuid import UUID
 
 from sqlmodel import Session, select
@@ -99,3 +99,35 @@ def delete_entry(session: Session, *, user_id: UUID, entry_id: UUID) -> bool:
     session.delete(entry)
     session.commit()
     return True
+
+
+def get_entries_by_date_range(
+    session: Session,
+    *,
+    user_id: UUID,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None
+) -> List[Entry]:
+    now = datetime.now(timezone.utc)
+    if start_date is None:
+        start_date = now.date() - timedelta(days=30)
+    if end_date is None:
+        end_date = now.date()
+
+    # Convert dates to datetime at start of day (00:00:00) and end of day (23:59:59.999999)
+    start_datetime = datetime.combine(
+        start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+    # For end_date, we want to include the entire day, so use start of next day and use < instead of <=
+    end_datetime = datetime.combine(
+        end_date + timedelta(days=1), datetime.min.time()).replace(tzinfo=timezone.utc)
+
+    statement = (
+        select(Entry)
+        .where(
+            Entry.user_id == user_id,
+            Entry.created_at >= start_datetime,
+            Entry.created_at < end_datetime
+        )
+    )
+    entries = session.exec(statement).all()
+    return entries

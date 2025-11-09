@@ -1,6 +1,5 @@
 import requests
 from app.core.config import settings
-from app.services.theme_extraction_service import theme_extraction_service
 
 API_URL = "https://router.huggingface.co/hf-inference/models/tabularisai/multilingual-sentiment-analysis"
 
