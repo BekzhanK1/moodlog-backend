@@ -3,6 +3,7 @@ from sqlmodel import Session, select
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
+from app.core.crypto import encrypt_data
 from app.db.session import get_session
 from app.models import Entry, User
 from app.schemas import EntryCreate, EntryUpdate, EntryResponse, EntryListResponse
@@ -19,6 +20,7 @@ _encryption_service = None
 _crypto_functions = None
 _analysis_service = None
 _audio_service = None
+_summarizer_service = None
 
 
 def get_audio_service():
@@ -56,7 +58,16 @@ def get_analysis_service():
     return _analysis_service
 
 
-async def analyze_entry_background(entry_id: UUID, content: str, user_id: UUID):
+def get_summarizer_service():
+    """Lazy load summarizer service"""
+    global _summarizer_service
+    if _summarizer_service is None:
+        from app.services.ai_summarizer import AISummarizerService
+        _summarizer_service = AISummarizerService()
+    return _summarizer_service
+
+
+async def analyze_entry_background(entry_id: UUID, content: str, user_id: UUID, data_key: Optional[str] = None):
     """Background task to analyze entry content and update the database"""
     try:
         # Use lazy-loaded analysis service
@@ -64,6 +75,19 @@ async def analyze_entry_background(entry_id: UUID, content: str, user_id: UUID):
 
         # Perform AI analysis
         analysis = mood_analysis_service.analyze_entry(content)
+
+        # Conditionally summarize entries > 100 words
+        word_count = len(content.split())
+        encrypted_summary = None
+        if word_count > 100:
+            summarizer_service = get_summarizer_service()
+            summary = summarizer_service.summarize_entry(content)
+            print(f"Summary ⚡: {summary}")
+            if summary and data_key:
+                encrypted_summary = encrypt_data(summary, data_key)
+        else:
+            print(
+                f"⏭️ Skipping summarization for short entry ({word_count} words)")
 
         # Create database session directly
         from sqlmodel import Session
@@ -82,6 +106,7 @@ async def analyze_entry_background(entry_id: UUID, content: str, user_id: UUID):
                 entry.mood_rating = analysis["mood_rating"]
                 # Keep user tags if provided
                 entry.tags = analysis["tags"] if not entry.tags else entry.tags
+                entry.encrypted_summary = encrypted_summary
                 entry.ai_processed_at = datetime.utcnow()
                 session.commit()
                 print(f"✅ AI analysis completed for entry {entry_id}")
@@ -113,6 +138,7 @@ def create_entry(
         user_id=current_user.id,
         title=encrypted_title,
         content=encrypted_content,
+        summary=None,  # Will be set by background task
         tags=entry_data.tags,
         is_draft=entry_data.is_draft,
     )
@@ -123,7 +149,8 @@ def create_entry(
             analyze_entry_background,
             entry.id,
             entry_data.content,
-            current_user.id
+            current_user.id,
+            data_key
         )
 
     return EntryResponse(
@@ -131,6 +158,8 @@ def create_entry(
         user_id=entry.user_id,
         title=entry_data.title,
         content=entry_data.content,
+        summary=decrypt_data(
+            entry.encrypted_summary, data_key) if entry.encrypted_summary is not None else None,
         mood_rating=entry.mood_rating,
         tags=entry.tags,
         is_draft=entry.is_draft,
@@ -170,6 +199,8 @@ def get_entries(
             title=decrypt_data(
                 e.title, data_key) if e.title is not None else None,
             content=decrypt_data(e.encrypted_content, data_key),
+            summary=decrypt_data(
+                e.encrypted_summary, data_key) if e.encrypted_summary is not None else None,
             mood_rating=e.mood_rating,
             tags=e.tags,
             is_draft=e.is_draft,
@@ -219,6 +250,8 @@ def get_entry(
         title=decrypt_data(
             entry.title, data_key) if entry.title is not None else None,
         content=decrypt_data(entry.encrypted_content, data_key),
+        summary=decrypt_data(
+            entry.encrypted_summary, data_key) if entry.encrypted_summary is not None else None,
         mood_rating=entry.mood_rating,
         tags=entry.tags,
         is_draft=entry.is_draft,
@@ -268,21 +301,24 @@ def update_entry(
         )
 
     # Only analyze if entry is not a draft and content was updated
+    data_key = get_user_data_key(session, user_id=current_user.id)
     if entry_data.content is not None and not entry.is_draft:
         background_tasks.add_task(
             analyze_entry_background,
             entry.id,
             entry_data.content,
-            current_user.id
+            current_user.id,
+            data_key
         )
 
-    data_key = get_user_data_key(session, user_id=current_user.id)
     return EntryResponse(
         id=entry.id,
         user_id=entry.user_id,
         title=decrypt_data(
             entry.title, data_key) if entry.title is not None else None,
         content=decrypt_data(entry.encrypted_content, data_key),
+        summary=decrypt_data(
+            entry.encrypted_summary, data_key) if entry.encrypted_summary is not None else None,
         mood_rating=entry.mood_rating,
         tags=entry.tags,
         is_draft=entry.is_draft,
@@ -372,6 +408,8 @@ def patch_entry(
         title=decrypt_data(
             entry.title, data_key) if entry.title is not None else None,
         content=decrypt_data(entry.encrypted_content, data_key),
+        summary=decrypt_data(
+            entry.encrypted_summary, data_key) if entry.encrypted_summary is not None else None,
         mood_rating=entry.mood_rating,
         tags=entry.tags,
         is_draft=entry.is_draft,
@@ -465,6 +503,7 @@ async def create_entry_from_audio(
         user_id=current_user.id,
         title=encrypted_title,
         content=encrypted_content,
+        summary=None,  # Will be set by background task
         tags=tags,
     )
 
@@ -473,7 +512,8 @@ async def create_entry_from_audio(
         analyze_entry_background,
         entry.id,
         content,
-        current_user.id
+        current_user.id,
+        data_key
     )
 
     return EntryResponse(
@@ -481,6 +521,8 @@ async def create_entry_from_audio(
         user_id=entry.user_id,
         title=title,
         content=content,
+        summary=decrypt_data(
+            entry.encrypted_summary, data_key) if entry.encrypted_summary is not None else None,
         mood_rating=entry.mood_rating,
         tags=entry.tags,
         created_at=entry.created_at,
