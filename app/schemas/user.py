@@ -17,6 +17,8 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: UUID
     email: str
+    name: Optional[str] = None
+    picture: Optional[str] = None
     created_at: datetime
     
     class Config:
