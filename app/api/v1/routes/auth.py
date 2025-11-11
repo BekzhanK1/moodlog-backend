@@ -1,4 +1,5 @@
 import secrets
+import urllib.parse
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
@@ -24,13 +25,13 @@ def register(user_data: UserCreate, session: Session = Depends(get_session)):
     """Register a new user"""
     # Check if user already exists
     existing_user = user_crud.get_user_by_email(session, email=user_data.email)
-    
+
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
-    
+
     # Create new user
     hashed_password = get_password_hash(user_data.password)
     user = user_crud.create_user(
@@ -40,7 +41,7 @@ def register(user_data: UserCreate, session: Session = Depends(get_session)):
     )
     # Generate and persist per-user encryption key (wrapped by master key)
     create_and_store_wrapped_key(session, user_id=user.id)
-    
+
     return user
 
 
@@ -49,21 +50,22 @@ def login(user_credentials: UserLogin, session: Session = Depends(get_session)):
     """Login user and return JWT tokens"""
     # Find user by email
     user = user_crud.get_user_by_email(session, email=user_credentials.email)
-    
+
     if not user or not verify_password(user_credentials.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     # Create tokens
-    access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+    access_token_expires = timedelta(
+        minutes=settings.access_token_expire_minutes)
     access_token = create_access_token(
         data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
-    
+
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -103,7 +105,8 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
 def google_login():
     """Redirect to Google OAuth login page"""
     state = secrets.token_urlsafe(32)
-    authorization_url, _ = google_oauth_service.get_authorization_url(state=state)
+    authorization_url, _ = google_oauth_service.get_authorization_url(
+        state=state)
     print(authorization_url)
     if not authorization_url:
         raise HTTPException(
@@ -112,29 +115,38 @@ def google_login():
         )
     return RedirectResponse(url=authorization_url, status_code=status.HTTP_302_FOUND)
 
-@router.get("/google/callback", response_model=Token)
+
+@router.get("/google/callback")
 def google_callback(code: str, state: Optional[str] = None, session: Session = Depends(get_session)):
-    """Complete Google OAuth flow and return JWT tokens"""
+    """Complete Google OAuth flow and redirect to frontend with tokens"""
 
     try:
         oauth_data = google_oauth_service.authenticate_user(code=code)
         user_info = oauth_data["user_info"]
 
-        user = user_crud.create_user_from_google_user(session, google_id=user_info["id"], email=user_info["email"], name=user_info["name"], picture=user_info["picture"])
+        user = user_crud.create_user_from_google_user(
+            session, google_id=user_info["id"], email=user_info["email"], name=user_info["name"], picture=user_info["picture"])
 
-        access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
-        access_token = create_access_token(data={"sub": str(user.id)}, expires_delta=access_token_expires)
+        access_token_expires = timedelta(
+            minutes=settings.access_token_expire_minutes)
+        access_token = create_access_token(
+            data={"sub": str(user.id)}, expires_delta=access_token_expires)
         refresh_token = create_refresh_token(data={"sub": str(user.id)})
 
-        return {
+        # Redirect to frontend with tokens in URL hash
+        tokens = {
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
             "expires_in": int(access_token_expires.total_seconds()),
         }
+        token_params = urllib.parse.urlencode(tokens)
+        frontend_url = f"{settings.frontend_origin}/auth/callback#{token_params}"
+
+        return RedirectResponse(url=frontend_url, status_code=status.HTTP_302_FOUND)
 
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        # Redirect to frontend with error
+        error_param = urllib.parse.urlencode({"error": str(e)})
+        frontend_url = f"{settings.frontend_origin}/auth/callback?{error_param}"
+        return RedirectResponse(url=frontend_url, status_code=status.HTTP_302_FOUND)
