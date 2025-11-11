@@ -13,6 +13,7 @@ def create_entry(
     user_id: UUID,
     title: Optional[str],
     content: str,
+    summary: Optional[str],
     tags: Optional[List[str]],
     is_draft: Optional[bool] = False,
 ) -> Entry:
@@ -26,6 +27,7 @@ def create_entry(
         user_id=user_id,
         title=title,
         encrypted_content=content,
+        encrypted_summary=summary,
         tags=tags,
         is_draft=is_draft,
     )

@@ -23,6 +23,7 @@ class EntryResponse(BaseModel):
     user_id: UUID
     title: Optional[str]
     content: str
+    summary: Optional[str] = None
     is_draft: Optional[bool] = False
     mood_rating: Optional[float] = None
     tags: Optional[List[str]] = None
