@@ -133,3 +133,60 @@ def get_entries_by_date_range(
     )
     entries = session.exec(statement).all()
     return entries
+
+
+def search_entries(
+    session: Session,
+    *,
+    user_id: UUID,
+    query: str,
+    offset: int = 0,
+    limit: int = 10,
+) -> Tuple[List[Entry], int]:
+    """Search entries by title, content, or tags.
+    
+    Note: Since title and content are encrypted, we need to decrypt them first.
+    This function returns all entries for the user, and filtering by query
+    should be done after decryption in the API layer.
+    
+    For tags, we can search directly in the JSON field.
+    """
+    # Check if query starts with # for tag search
+    is_tag_search = query.startswith('#')
+    tag_to_search = query[1:].strip() if is_tag_search else None
+    
+    # Base query for user's entries
+    base_statement = select(Entry).where(Entry.user_id == user_id)
+    
+    if is_tag_search and tag_to_search:
+        # Search by tag (tags are stored as JSON array)
+        # SQLModel/SQLAlchemy JSON contains check
+        import json
+        # We'll need to check if the tag exists in the tags array
+        # Since tags is a JSON column, we need to use a JSON function
+        # For PostgreSQL: tags @> '["tag"]'::jsonb
+        # For SQLite: we'll need to check differently
+        # Let's use a simpler approach: get all entries and filter in Python
+        # Or use JSON_EXTRACT for SQLite
+        statement = base_statement.order_by(Entry.created_at.desc())
+    else:
+        # For title/content search, we'll get all entries and filter after decryption
+        statement = base_statement.order_by(Entry.created_at.desc())
+    
+    # Get all entries (we'll filter after decryption for title/content)
+    all_entries = session.exec(statement).all()
+    
+    # Filter by tag if it's a tag search
+    if is_tag_search and tag_to_search:
+        filtered_entries = [
+            e for e in all_entries
+            if e.tags and tag_to_search.lower() in [tag.lower() for tag in e.tags]
+        ]
+        total = len(filtered_entries)
+        paginated_entries = filtered_entries[offset:offset + limit]
+        return paginated_entries, total
+    
+    # For non-tag searches, return all entries (will be filtered after decryption)
+    total = len(all_entries)
+    paginated_entries = all_entries[offset:offset + limit]
+    return paginated_entries, total

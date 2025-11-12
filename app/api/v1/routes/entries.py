@@ -104,8 +104,8 @@ async def analyze_entry_background(entry_id: UUID, content: str, user_id: UUID, 
                     return
 
                 entry.mood_rating = analysis["mood_rating"]
-                # Keep user tags if provided
-                entry.tags = analysis["tags"] if not entry.tags else entry.tags
+                # Always update tags from AI analysis (they reflect the current content)
+                entry.tags = analysis["tags"]
                 entry.encrypted_summary = encrypted_summary
                 entry.ai_processed_at = datetime.utcnow()
                 session.commit()
@@ -210,6 +210,134 @@ def get_entries(
         )
         for e in entries
     ]
+
+    return EntryListResponse(
+        entries=response_entries,
+        total=total,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages
+    )
+
+
+@router.get("/search", response_model=EntryListResponse)
+def search_entries(
+    q: str = Query(..., description="Search query (use #tag for tag search)"),
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(10, ge=1, le=100, description="Entries per page"),
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    """Search entries by title, content, or tags.
+
+    Use #tag format to search by tags (e.g., #work, #personal).
+    Regular text searches in title and content.
+    """
+    # Use lazy-loaded services
+    get_user_data_key = get_encryption_service()
+    encrypt_data, decrypt_data = get_crypto_functions()
+
+    data_key = get_user_data_key(session, user_id=current_user.id)
+
+    # Decrypt and filter entries
+    is_tag_search = q.startswith('#')
+    search_query = q[1:].strip().lower() if is_tag_search else q.lower()
+
+    # For non-tag searches, we need to get all entries first, filter them, then paginate
+    # For tag searches, CRUD already filters, so we can paginate directly
+    if is_tag_search:
+        # Tag search: CRUD already filters, so we can paginate directly
+        offset = (page - 1) * per_page
+        entries, total = entry_crud.search_entries(
+            session,
+            user_id=current_user.id,
+            query=q,
+            offset=offset,
+            limit=per_page,
+        )
+
+        # Decrypt entries
+        response_entries = []
+        for e in entries:
+            decrypted_title = decrypt_data(
+                e.title, data_key) if e.title is not None else None
+            decrypted_content = decrypt_data(e.encrypted_content, data_key)
+
+            response_entries.append(
+                EntryResponse(
+                    id=e.id,
+                    user_id=e.user_id,
+                    title=decrypted_title,
+                    content=decrypted_content,
+                    summary=decrypt_data(
+                        e.encrypted_summary, data_key) if e.encrypted_summary is not None else None,
+                    mood_rating=e.mood_rating,
+                    tags=e.tags,
+                    is_draft=e.is_draft,
+                    created_at=e.created_at,
+                    updated_at=e.updated_at,
+                    ai_processed_at=e.ai_processed_at,
+                )
+            )
+    else:
+        # Non-tag search: get all entries, filter after decryption, then paginate
+        all_entries, _ = entry_crud.search_entries(
+            session,
+            user_id=current_user.id,
+            query=q,
+            offset=0,
+            limit=10000,  # Get all for filtering
+        )
+
+        # Decrypt and filter all entries
+        filtered_entries = []
+        for e in all_entries:
+            decrypted_title = decrypt_data(
+                e.title, data_key) if e.title is not None else None
+            decrypted_content = decrypt_data(e.encrypted_content, data_key)
+
+            # Search in title and content
+            title_match = decrypted_title and search_query in decrypted_title.lower(
+            ) if decrypted_title else False
+            content_match = search_query in decrypted_content.lower()
+
+            if title_match or content_match:
+                filtered_entries.append({
+                    'entry': e,
+                    'decrypted_title': decrypted_title,
+                    'decrypted_content': decrypted_content,
+                })
+
+        # Apply pagination to filtered results
+        total = len(filtered_entries)
+        offset = (page - 1) * per_page
+        paginated_filtered = filtered_entries[offset:offset + per_page]
+
+        # Build response entries
+        response_entries = []
+        for item in paginated_filtered:
+            e = item['entry']
+            decrypted_title = item['decrypted_title']
+            decrypted_content = item['decrypted_content']
+
+            response_entries.append(
+                EntryResponse(
+                    id=e.id,
+                    user_id=e.user_id,
+                    title=decrypted_title,
+                    content=decrypted_content,
+                    summary=decrypt_data(
+                        e.encrypted_summary, data_key) if e.encrypted_summary is not None else None,
+                    mood_rating=e.mood_rating,
+                    tags=e.tags,
+                    is_draft=e.is_draft,
+                    created_at=e.created_at,
+                    updated_at=e.updated_at,
+                    ai_processed_at=e.ai_processed_at,
+                )
+            )
+
+    total_pages = math.ceil(total / per_page) if per_page else 1
 
     return EntryListResponse(
         entries=response_entries,
@@ -399,7 +527,8 @@ def patch_entry(
             analyze_entry_background,
             entry.id,
             content_for_analysis,
-            current_user.id
+            current_user.id,
+            data_key
         )
 
     return EntryResponse(
