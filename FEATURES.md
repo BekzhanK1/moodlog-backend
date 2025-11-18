@@ -35,8 +35,8 @@
 - Export data (CSV / JSON)
 
 ## 🤖 5. Intelligent Features _(Planned – marked as # TODO: AI)_
-- `/api/v1/ai/suggested-prompt` → returns empathetic writing prompt
-- `/api/v1/analytics/summary` → returns AI-generated weekly recap
+- `/v1/ai/suggested-prompt` → returns empathetic writing prompt
+- `/v1/analytics/summary` → returns AI-generated weekly recap
 - Auto-suggested tags during entry creation
 - “Good Days” archive for re-reading uplifting entries
 

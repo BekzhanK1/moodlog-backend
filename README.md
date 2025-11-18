@@ -104,16 +104,16 @@ The API will be available at:
 ## API Endpoints
 
 ### Authentication
-- `POST /api/v1/auth/register` - Register new user
-- `POST /api/v1/auth/login` - Login user
-- `GET /api/v1/auth/me` - Get current user info
+- `POST /v1/auth/register` - Register new user
+- `POST /v1/auth/login` - Login user
+- `GET /v1/auth/me` - Get current user info
 
 ### Diary Entries
-- `POST /api/v1/entries/` - Create entry
-- `GET /api/v1/entries/` - List entries (paginated)
-- `GET /api/v1/entries/{id}` - Get specific entry
-- `PUT /api/v1/entries/{id}` - Update entry
-- `DELETE /api/v1/entries/{id}` - Delete entry
+- `POST /v1/entries/` - Create entry
+- `GET /v1/entries/` - List entries (paginated)
+- `GET /v1/entries/{id}` - Get specific entry
+- `PUT /v1/entries/{id}` - Update entry
+- `DELETE /v1/entries/{id}` - Delete entry
 
 ## AI Features (Future)
 

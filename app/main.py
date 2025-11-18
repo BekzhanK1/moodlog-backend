@@ -23,7 +23,7 @@ app.add_middleware(
 )
 
 # Include API routes
-app.include_router(api_router, prefix="/api/v1")
+app.include_router(api_router, prefix="/v1")
 
 
 @app.on_event("startup")
@@ -46,4 +46,3 @@ def root():
         "version": "1.0.0",
         "docs": "/docs"
     }
-
