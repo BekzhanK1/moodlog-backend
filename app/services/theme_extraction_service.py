@@ -65,16 +65,13 @@ class ThemeExtractionService:
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a helpful assistant that extracts themes from diary entries in any language. Always respond with valid JSON. Generate themes that match the language of the diary entry."
+                        "content": "You are a helpful assistant that extracts themes from diary entries in any language. Always respond with valid JSON. Generate themes that match the language of the diary entry.",
                     },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
+                    {"role": "user", "content": prompt},
                 ],
                 response_format={"type": "json_object"},
                 temperature=0.3,  # Slightly higher for more creative theme generation
-                max_tokens=300
+                max_tokens=300,
             )
 
             # Parse the response
@@ -86,8 +83,9 @@ class ThemeExtractionService:
             themes = self.lowercase_list(themes)
 
             # Ensure themes are strings and limit to max_themes
-            valid_themes = [str(theme).strip()
-                            for theme in themes if theme and str(theme).strip()]
+            valid_themes = [
+                str(theme).strip() for theme in themes if theme and str(theme).strip()
+            ]
 
             # Limit to max_themes
             return self.lowercase_list(valid_themes[:max_themes])
@@ -96,8 +94,7 @@ class ThemeExtractionService:
             print(f"Error parsing JSON response from OpenAI: {e}")
             return []
         except Exception as e:
-            print(
-                f"Error extracting themes with OpenAI for text '{text[:50]}...': {e}")
+            print(f"Error extracting themes with OpenAI for text '{text[:50]}...': {e}")
             return []
 
 

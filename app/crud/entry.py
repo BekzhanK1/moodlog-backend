@@ -37,9 +37,10 @@ def create_entry(
     return entry
 
 
-def get_entry_by_id(session: Session, *, user_id: UUID, entry_id: UUID) -> Optional[Entry]:
-    statement = select(Entry).where(
-        Entry.id == entry_id, Entry.user_id == user_id)
+def get_entry_by_id(
+    session: Session, *, user_id: UUID, entry_id: UUID
+) -> Optional[Entry]:
+    statement = select(Entry).where(Entry.id == entry_id, Entry.user_id == user_id)
     return session.exec(statement).first()
 
 
@@ -108,7 +109,7 @@ def get_entries_by_date_range(
     *,
     user_id: UUID,
     start_date: Optional[date] = None,
-    end_date: Optional[date] = None
+    end_date: Optional[date] = None,
 ) -> List[Entry]:
     now = datetime.now(timezone.utc)
     if start_date is None:
@@ -117,19 +118,18 @@ def get_entries_by_date_range(
         end_date = now.date()
 
     # Convert dates to datetime at start of day (00:00:00) and end of day (23:59:59.999999)
-    start_datetime = datetime.combine(
-        start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+    start_datetime = datetime.combine(start_date, datetime.min.time()).replace(
+        tzinfo=timezone.utc
+    )
     # For end_date, we want to include the entire day, so use start of next day and use < instead of <=
     end_datetime = datetime.combine(
-        end_date + timedelta(days=1), datetime.min.time()).replace(tzinfo=timezone.utc)
+        end_date + timedelta(days=1), datetime.min.time()
+    ).replace(tzinfo=timezone.utc)
 
-    statement = (
-        select(Entry)
-        .where(
-            Entry.user_id == user_id,
-            Entry.created_at >= start_datetime,
-            Entry.created_at < end_datetime
-        )
+    statement = select(Entry).where(
+        Entry.user_id == user_id,
+        Entry.created_at >= start_datetime,
+        Entry.created_at < end_datetime,
     )
     entries = session.exec(statement).all()
     return entries
@@ -144,24 +144,23 @@ def search_entries(
     limit: int = 10,
 ) -> Tuple[List[Entry], int]:
     """Search entries by title, content, or tags.
-    
+
     Note: Since title and content are encrypted, we need to decrypt them first.
     This function returns all entries for the user, and filtering by query
     should be done after decryption in the API layer.
-    
+
     For tags, we can search directly in the JSON field.
     """
     # Check if query starts with # for tag search
-    is_tag_search = query.startswith('#')
+    is_tag_search = query.startswith("#")
     tag_to_search = query[1:].strip() if is_tag_search else None
-    
+
     # Base query for user's entries
     base_statement = select(Entry).where(Entry.user_id == user_id)
-    
+
     if is_tag_search and tag_to_search:
         # Search by tag (tags are stored as JSON array)
         # SQLModel/SQLAlchemy JSON contains check
-        import json
         # We'll need to check if the tag exists in the tags array
         # Since tags is a JSON column, we need to use a JSON function
         # For PostgreSQL: tags @> '["tag"]'::jsonb
@@ -172,21 +171,22 @@ def search_entries(
     else:
         # For title/content search, we'll get all entries and filter after decryption
         statement = base_statement.order_by(Entry.created_at.desc())
-    
+
     # Get all entries (we'll filter after decryption for title/content)
     all_entries = session.exec(statement).all()
-    
+
     # Filter by tag if it's a tag search
     if is_tag_search and tag_to_search:
         filtered_entries = [
-            e for e in all_entries
+            e
+            for e in all_entries
             if e.tags and tag_to_search.lower() in [tag.lower() for tag in e.tags]
         ]
         total = len(filtered_entries)
-        paginated_entries = filtered_entries[offset:offset + limit]
+        paginated_entries = filtered_entries[offset : offset + limit]
         return paginated_entries, total
-    
+
     # For non-tag searches, return all entries (will be filtered after decryption)
     total = len(all_entries)
-    paginated_entries = all_entries[offset:offset + limit]
+    paginated_entries = all_entries[offset : offset + limit]
     return paginated_entries, total

@@ -1,6 +1,4 @@
-from typing import Tuple
 import base64
-import os
 
 
 def derive_key_from_secret(secret: str) -> bytes:
@@ -21,5 +19,3 @@ def decrypt_data(ciphertext: str, secret: str) -> str:
     raw = base64.urlsafe_b64decode(ciphertext.encode("utf-8"))
     data = bytes([b ^ key[i % len(key)] for i, b in enumerate(raw)])
     return data.decode("utf-8")
-
-

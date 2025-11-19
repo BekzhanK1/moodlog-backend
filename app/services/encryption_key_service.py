@@ -30,5 +30,3 @@ def get_user_data_key(session: Session, *, user_id: UUID) -> str:
         raise ValueError("Encryption key not found for user")
     data_key = decrypt_data(record.wrapped_key, settings.master_encryption_key)
     return data_key
-
-

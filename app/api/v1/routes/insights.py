@@ -16,16 +16,17 @@ from app.core.crypto import decrypt_data
 router = APIRouter()
 
 
-@router.post("/monthly", response_model=InsightResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/monthly", response_model=InsightResponse, status_code=status.HTTP_201_CREATED
+)
 def generate_monthly_insights(
-    year: Optional[int] = Query(
-        None, description="Year (defaults to current year)"),
+    year: Optional[int] = Query(None, description="Year (defaults to current year)"),
     month: Optional[int] = Query(
-        None, description="Month 1-12 (defaults to current month)"),
-    use_pro_model: bool = Query(
-        True, description="Use GPT-4o instead of GPT-4o-mini"),
+        None, description="Month 1-12 (defaults to current month)"
+    ),
+    use_pro_model: bool = Query(True, description="Use GPT-4o instead of GPT-4o-mini"),
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     """Generate monthly insights report for a specific month"""
     insights_text = ai_insights_service.generate_monthly_insights_report(
@@ -39,7 +40,7 @@ def generate_monthly_insights(
     if not insights_text:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No entries found for the specified month"
+            detail="No entries found for the specified month",
         )
 
     # Get the saved insight to return
@@ -58,7 +59,7 @@ def generate_monthly_insights(
     if not insight:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Insight was generated but could not be retrieved"
+            detail="Insight was generated but could not be retrieved",
         )
 
     # Decrypt content
@@ -81,12 +82,12 @@ def generate_monthly_insights(
 
 @router.get("/monthly", response_model=InsightResponse)
 def get_monthly_insights(
-    year: Optional[int] = Query(
-        None, description="Year (defaults to current year)"),
+    year: Optional[int] = Query(None, description="Year (defaults to current year)"),
     month: Optional[int] = Query(
-        None, description="Month 1-12 (defaults to current month)"),
+        None, description="Month 1-12 (defaults to current month)"
+    ),
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     """Get existing monthly insights report for a specific month"""
     now = datetime.now()
@@ -104,7 +105,7 @@ def get_monthly_insights(
     if not insight:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Monthly insights not found for the specified month"
+            detail="Monthly insights not found for the specified month",
         )
 
     # Decrypt content
@@ -125,16 +126,19 @@ def get_monthly_insights(
     )
 
 
-@router.post("/weekly", response_model=InsightResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/weekly", response_model=InsightResponse, status_code=status.HTTP_201_CREATED
+)
 def generate_weekly_insights(
     iso_year: Optional[int] = Query(
-        None, description="ISO year (defaults to current ISO year)"),
+        None, description="ISO year (defaults to current ISO year)"
+    ),
     iso_week: Optional[int] = Query(
-        None, description="ISO week number 1-53 (defaults to current ISO week)"),
-    use_pro_model: bool = Query(
-        True, description="Use GPT-4o instead of GPT-4o-mini"),
+        None, description="ISO week number 1-53 (defaults to current ISO week)"
+    ),
+    use_pro_model: bool = Query(True, description="Use GPT-4o instead of GPT-4o-mini"),
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     """Generate weekly insights report for a specific ISO year/week"""
     insights_text = ai_insights_service.generate_weekly_insights_report(
@@ -148,7 +152,7 @@ def generate_weekly_insights(
     if not insights_text:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No entries found for the specified ISO week"
+            detail="No entries found for the specified ISO week",
         )
 
     # Get the saved insight to return
@@ -168,7 +172,7 @@ def generate_weekly_insights(
     if not insight:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Insight was generated but could not be retrieved"
+            detail="Insight was generated but could not be retrieved",
         )
 
     # Decrypt content
@@ -192,11 +196,13 @@ def generate_weekly_insights(
 @router.get("/weekly", response_model=InsightResponse)
 def get_weekly_insights(
     iso_year: Optional[int] = Query(
-        None, description="ISO year (defaults to current ISO year)"),
+        None, description="ISO year (defaults to current ISO year)"
+    ),
     iso_week: Optional[int] = Query(
-        None, description="ISO week number 1-53 (defaults to current ISO week)"),
+        None, description="ISO week number 1-53 (defaults to current ISO week)"
+    ),
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     """Get existing weekly insights report for a specific ISO year/week"""
     now = datetime.now()
@@ -215,7 +221,7 @@ def get_weekly_insights(
     if not insight:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Weekly insights not found for the specified ISO week"
+            detail="Weekly insights not found for the specified ISO week",
         )
 
     # Decrypt content
@@ -239,11 +245,12 @@ def get_weekly_insights(
 @router.get("/", response_model=InsightListResponse)
 def list_insights(
     type: Optional[str] = Query(
-        None, description="Filter by insight type (monthly, weekly, specific, custom)"),
+        None, description="Filter by insight type (monthly, weekly, specific, custom)"
+    ),
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     """List all insights for the current user"""
     offset = (page - 1) * per_page
@@ -288,20 +295,19 @@ def list_insights(
 def get_insight(
     insight_id: UUID,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     """Get a specific insight by ID"""
     from sqlmodel import select
+
     statement = select(Insight).where(
-        Insight.id == insight_id,
-        Insight.user_id == current_user.id
+        Insight.id == insight_id, Insight.user_id == current_user.id
     )
     insight = session.exec(statement).first()
 
     if not insight:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Insight not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Insight not found"
         )
 
     # Decrypt content

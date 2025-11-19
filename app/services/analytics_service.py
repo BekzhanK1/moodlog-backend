@@ -1,4 +1,3 @@
-
 from datetime import date, datetime, timezone, timedelta
 from typing import Optional
 from uuid import UUID
@@ -15,7 +14,7 @@ class AnalyticsService:
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
         # Offset in hours (e.g., 5 for UTC+5)
-        user_timezone_offset: Optional[int] = None
+        user_timezone_offset: Optional[int] = None,
     ):
         entries = entry_crud.get_entries_by_date_range(
             session, user_id=user_id, start_date=start_date, end_date=end_date
@@ -63,14 +62,22 @@ class AnalyticsService:
             ratings = data.get("mood_ratings", [])
             if ratings:
                 avg_rating = sum(ratings) / len(ratings)
-                data_points.append({
-                    "date": day,
-                    "mood_rating": round(avg_rating, 2),
-                    "num_entries": data.get("num_entries", 0),
-                })
+                data_points.append(
+                    {
+                        "date": day,
+                        "mood_rating": round(avg_rating, 2),
+                        "num_entries": data.get("num_entries", 0),
+                    }
+                )
         return data_points
 
-    def get_main_themes(self, session: Session, user_id: UUID, start_date: Optional[date] = None, end_date: Optional[date] = None):
+    def get_main_themes(
+        self,
+        session: Session,
+        user_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ):
         entries = entry_crud.get_entries_by_date_range(
             session, user_id=user_id, start_date=start_date, end_date=end_date
         )
@@ -98,21 +105,33 @@ class AnalyticsService:
         result = []
         for tag, frequency in sorted(themes.items(), key=lambda x: x[1], reverse=True):
             relative_percentage = int(round((frequency / total_tags) * 100))
-            result.append({
-                "tag": tag,
-                "frequency": frequency,
-                "relative_percentage": relative_percentage
-            })
+            result.append(
+                {
+                    "tag": tag,
+                    "frequency": frequency,
+                    "relative_percentage": relative_percentage,
+                }
+            )
         return result[:5]
 
     def _sort_entries_by_mood_rating(self, entries):
         sorted_entries = sorted(
-            entries, key=lambda x: x.mood_rating if x.mood_rating is not None else 0, reverse=True)
+            entries,
+            key=lambda x: x.mood_rating if x.mood_rating is not None else 0,
+            reverse=True,
+        )
         return sorted_entries
 
-    def get_best_and_worst_entries_by_mood_rating(self, session: Session, user_id: UUID, start_date: Optional[date] = None, end_date: Optional[date] = None):
+    def get_best_and_worst_entries_by_mood_rating(
+        self,
+        session: Session,
+        user_id: UUID,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ):
         entries = entry_crud.get_entries_by_date_range(
-            session=session, user_id=user_id, start_date=start_date, end_date=end_date)
+            session=session, user_id=user_id, start_date=start_date, end_date=end_date
+        )
 
         if not entries:
             return []
@@ -128,7 +147,7 @@ class AnalyticsService:
                 "tags": best_entry.tags,
                 "created_at": best_entry.created_at,
                 "updated_at": best_entry.updated_at,
-                "ai_processed_at": best_entry.ai_processed_at
+                "ai_processed_at": best_entry.ai_processed_at,
             },
             "worst_entry": {
                 "id": worst_entry.id,
@@ -136,41 +155,56 @@ class AnalyticsService:
                 "tags": worst_entry.tags,
                 "created_at": worst_entry.created_at,
                 "updated_at": worst_entry.updated_at,
-                "ai_processed_at": worst_entry.ai_processed_at
-            }
+                "ai_processed_at": worst_entry.ai_processed_at,
+            },
         }
 
-    def compare_current_and_previous_month_mood_rating(self, session: Session, user_id: UUID):
+    def compare_current_and_previous_month_mood_rating(
+        self, session: Session, user_id: UUID
+    ):
         now = datetime.now()
         current_month = now.month
         current_year = now.year
 
         previous_month, previous_year = self._get_previous_month_and_year(
-            current_month, current_year)
+            current_month, current_year
+        )
 
-        start_date, end_date = self._get_month_date_range(
-            current_year, current_month)
+        start_date, end_date = self._get_month_date_range(current_year, current_month)
         previous_start_date, previous_end_date = self._get_month_date_range(
-            previous_year, previous_month)
+            previous_year, previous_month
+        )
 
         current_entries = self._get_valid_entries_for_month(
-            session, user_id, start_date, end_date)
+            session, user_id, start_date, end_date
+        )
         previous_entries = self._get_valid_entries_for_month(
-            session, user_id, previous_start_date, previous_end_date)
+            session, user_id, previous_start_date, previous_end_date
+        )
 
-        current_mood_rating = self._calculate_average_mood_rating(
-            current_entries)
-        previous_mood_rating = self._calculate_average_mood_rating(
-            previous_entries)
+        current_mood_rating = self._calculate_average_mood_rating(current_entries)
+        previous_mood_rating = self._calculate_average_mood_rating(previous_entries)
 
         mood_rating_difference = None
         if current_mood_rating is not None and previous_mood_rating is not None:
             mood_rating_difference = current_mood_rating - previous_mood_rating
 
         return {
-            "current_mood_rating": round(current_mood_rating, 2) if current_mood_rating is not None else None,
-            "previous_mood_rating": round(previous_mood_rating, 2) if previous_mood_rating is not None else None,
-            "mood_rating_difference": round(mood_rating_difference, 2) if mood_rating_difference is not None else None
+            "current_mood_rating": (
+                round(current_mood_rating, 2)
+                if current_mood_rating is not None
+                else None
+            ),
+            "previous_mood_rating": (
+                round(previous_mood_rating, 2)
+                if previous_mood_rating is not None
+                else None
+            ),
+            "mood_rating_difference": (
+                round(mood_rating_difference, 2)
+                if mood_rating_difference is not None
+                else None
+            ),
         }
 
     def _get_previous_month_and_year(self, current_month, current_year):
@@ -181,6 +215,7 @@ class AnalyticsService:
 
     def _get_month_date_range(self, year, month):
         import calendar
+
         start_date = date(year, month, 1)
         last_day = calendar.monthrange(year, month)[1]
         end_date = date(year, month, last_day)
@@ -191,7 +226,8 @@ class AnalyticsService:
             session=session, user_id=user_id, start_date=start_date, end_date=end_date
         )
         valid_entries = [
-            entry for entry in entries
+            entry
+            for entry in entries
             if entry.mood_rating is not None and not entry.is_draft
         ]
         return valid_entries

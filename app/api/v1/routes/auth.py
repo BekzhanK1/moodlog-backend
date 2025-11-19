@@ -3,11 +3,17 @@ import urllib.parse
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
-from sqlmodel import Session, select
+from sqlmodel import Session
 from app.db.session import get_session
 from app.models import User
 from app.schemas import UserCreate, UserLogin, UserResponse, Token
-from app.core.security import get_password_hash, verify_password, create_access_token, create_refresh_token, verify_token
+from app.core.security import (
+    get_password_hash,
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+    verify_token,
+)
 from app.core.deps import get_current_user
 from datetime import timedelta
 from app.core.config import settings
@@ -20,7 +26,9 @@ router = APIRouter()
 refresh_security = HTTPBearer()
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
+)
 def register(user_data: UserCreate, session: Session = Depends(get_session)):
     """Register a new user"""
     # Check if user already exists
@@ -28,8 +36,7 @@ def register(user_data: UserCreate, session: Session = Depends(get_session)):
 
     if existing_user:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered"
         )
 
     # Create new user
@@ -59,8 +66,7 @@ def login(user_credentials: UserLogin, session: Session = Depends(get_session)):
         )
 
     # Create tokens
-    access_token_expires = timedelta(
-        minutes=settings.access_token_expire_minutes)
+    access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = create_access_token(
         data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
@@ -91,7 +97,9 @@ def refresh_token(
         "access_token": access_token,
         "refresh_token": credentials.credentials,
         "token_type": "bearer",
-        "expires_in": int(timedelta(minutes=settings.access_token_expire_minutes).total_seconds()),
+        "expires_in": int(
+            timedelta(minutes=settings.access_token_expire_minutes).total_seconds()
+        ),
     }
 
 
@@ -105,19 +113,20 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
 def google_login():
     """Redirect to Google OAuth login page"""
     state = secrets.token_urlsafe(32)
-    authorization_url, _ = google_oauth_service.get_authorization_url(
-        state=state)
+    authorization_url, _ = google_oauth_service.get_authorization_url(state=state)
     print(authorization_url)
     if not authorization_url:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to generate authorization URL"
+            detail="Failed to generate authorization URL",
         )
     return RedirectResponse(url=authorization_url, status_code=status.HTTP_302_FOUND)
 
 
 @router.get("/google/callback")
-def google_callback(code: str, state: Optional[str] = None, session: Session = Depends(get_session)):
+def google_callback(
+    code: str, state: Optional[str] = None, session: Session = Depends(get_session)
+):
     """Complete Google OAuth flow and redirect to frontend with tokens"""
 
     try:
@@ -125,12 +134,17 @@ def google_callback(code: str, state: Optional[str] = None, session: Session = D
         user_info = oauth_data["user_info"]
 
         user = user_crud.create_user_from_google_user(
-            session, google_id=user_info["id"], email=user_info["email"], name=user_info["name"], picture=user_info["picture"])
+            session,
+            google_id=user_info["id"],
+            email=user_info["email"],
+            name=user_info["name"],
+            picture=user_info["picture"],
+        )
 
-        access_token_expires = timedelta(
-            minutes=settings.access_token_expire_minutes)
+        access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
         access_token = create_access_token(
-            data={"sub": str(user.id)}, expires_delta=access_token_expires)
+            data={"sub": str(user.id)}, expires_delta=access_token_expires
+        )
         refresh_token = create_refresh_token(data={"sub": str(user.id)})
 
         # Redirect to frontend with tokens in URL hash

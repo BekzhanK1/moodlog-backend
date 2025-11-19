@@ -12,3 +12,15 @@ migrate-down:
 
 migrate-stamp-head:
 	alembic stamp head
+
+lint:
+	ruff check app/
+
+format:
+	black app/
+
+type-check:
+	mypy app/
+
+test:
+	pytest

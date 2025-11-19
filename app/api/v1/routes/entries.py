@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
-from sqlmodel import Session, select
+from sqlmodel import Session
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 from app.core.crypto import encrypt_data
 from app.db.session import get_session
-from app.models import Entry, User
+from app.models import User
 from app.schemas import EntryCreate, EntryUpdate, EntryResponse, EntryListResponse
 from app.core.deps import get_current_user
 import math
@@ -36,6 +36,7 @@ def get_encryption_service():
     global _encryption_service
     if _encryption_service is None:
         from app.services.encryption_key_service import get_user_data_key
+
         _encryption_service = get_user_data_key
     return _encryption_service
 
@@ -45,6 +46,7 @@ def get_crypto_functions():
     global _crypto_functions
     if _crypto_functions is None:
         from app.core.crypto import encrypt_data, decrypt_data
+
         _crypto_functions = (encrypt_data, decrypt_data)
     return _crypto_functions
 
@@ -54,6 +56,7 @@ def get_analysis_service():
     global _analysis_service
     if _analysis_service is None:
         from app.services.entry_analysis_service import MoodAnalysisService
+
         _analysis_service = MoodAnalysisService()
     return _analysis_service
 
@@ -63,11 +66,14 @@ def get_summarizer_service():
     global _summarizer_service
     if _summarizer_service is None:
         from app.services.ai_summarizer import AISummarizerService
+
         _summarizer_service = AISummarizerService()
     return _summarizer_service
 
 
-async def analyze_entry_background(entry_id: UUID, content: str, user_id: UUID, data_key: Optional[str] = None):
+async def analyze_entry_background(
+    entry_id: UUID, content: str, user_id: UUID, data_key: Optional[str] = None
+):
     """Background task to analyze entry content and update the database"""
     try:
         # Use lazy-loaded analysis service
@@ -86,8 +92,7 @@ async def analyze_entry_background(entry_id: UUID, content: str, user_id: UUID, 
             if summary and data_key:
                 encrypted_summary = encrypt_data(summary, data_key)
         else:
-            print(
-                f"⏭️ Skipping summarization for short entry ({word_count} words)")
+            print(f"⏭️ Skipping summarization for short entry ({word_count} words)")
 
         # Create database session directly
         from sqlmodel import Session
@@ -95,12 +100,12 @@ async def analyze_entry_background(entry_id: UUID, content: str, user_id: UUID, 
 
         with Session(engine) as session:
             entry = entry_crud.get_entry_by_id(
-                session, entry_id=entry_id, user_id=user_id)
+                session, entry_id=entry_id, user_id=user_id
+            )
             if entry:
                 # Skip analysis if entry is a draft
                 if entry.is_draft:
-                    print(
-                        f"⏭️ Skipping AI analysis for draft entry {entry_id}")
+                    print(f"⏭️ Skipping AI analysis for draft entry {entry_id}")
                     return
 
                 entry.mood_rating = analysis["mood_rating"]
@@ -121,7 +126,7 @@ def create_entry(
     entry_data: EntryCreate,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     """Create a new diary entry"""
     # Use lazy-loaded services
@@ -130,8 +135,11 @@ def create_entry(
 
     data_key = get_user_data_key(session, user_id=current_user.id)
     encrypted_content = encrypt_data(entry_data.content, data_key)
-    encrypted_title = encrypt_data(
-        entry_data.title, data_key) if entry_data.title is not None else None
+    encrypted_title = (
+        encrypt_data(entry_data.title, data_key)
+        if entry_data.title is not None
+        else None
+    )
 
     entry = entry_crud.create_entry(
         session,
@@ -150,7 +158,7 @@ def create_entry(
             entry.id,
             entry_data.content,
             current_user.id,
-            data_key
+            data_key,
         )
 
     return EntryResponse(
@@ -158,8 +166,11 @@ def create_entry(
         user_id=entry.user_id,
         title=entry_data.title,
         content=entry_data.content,
-        summary=decrypt_data(
-            entry.encrypted_summary, data_key) if entry.encrypted_summary is not None else None,
+        summary=(
+            decrypt_data(entry.encrypted_summary, data_key)
+            if entry.encrypted_summary is not None
+            else None
+        ),
         mood_rating=entry.mood_rating,
         tags=entry.tags,
         is_draft=entry.is_draft,
@@ -174,7 +185,7 @@ def get_entries(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(10, ge=1, le=100, description="Entries per page"),
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     """Get paginated list of user's diary entries"""
     # Use lazy-loaded services
@@ -196,11 +207,13 @@ def get_entries(
         EntryResponse(
             id=e.id,
             user_id=e.user_id,
-            title=decrypt_data(
-                e.title, data_key) if e.title is not None else None,
+            title=decrypt_data(e.title, data_key) if e.title is not None else None,
             content=decrypt_data(e.encrypted_content, data_key),
-            summary=decrypt_data(
-                e.encrypted_summary, data_key) if e.encrypted_summary is not None else None,
+            summary=(
+                decrypt_data(e.encrypted_summary, data_key)
+                if e.encrypted_summary is not None
+                else None
+            ),
             mood_rating=e.mood_rating,
             tags=e.tags,
             is_draft=e.is_draft,
@@ -216,7 +229,7 @@ def get_entries(
         total=total,
         page=page,
         per_page=per_page,
-        total_pages=total_pages
+        total_pages=total_pages,
     )
 
 
@@ -226,7 +239,7 @@ def search_entries(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(10, ge=1, le=100, description="Entries per page"),
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     """Search entries by title, content, or tags.
 
@@ -240,7 +253,7 @@ def search_entries(
     data_key = get_user_data_key(session, user_id=current_user.id)
 
     # Decrypt and filter entries
-    is_tag_search = q.startswith('#')
+    is_tag_search = q.startswith("#")
     search_query = q[1:].strip().lower() if is_tag_search else q.lower()
 
     # For non-tag searches, we need to get all entries first, filter them, then paginate
@@ -259,8 +272,9 @@ def search_entries(
         # Decrypt entries
         response_entries = []
         for e in entries:
-            decrypted_title = decrypt_data(
-                e.title, data_key) if e.title is not None else None
+            decrypted_title = (
+                decrypt_data(e.title, data_key) if e.title is not None else None
+            )
             decrypted_content = decrypt_data(e.encrypted_content, data_key)
 
             response_entries.append(
@@ -269,8 +283,11 @@ def search_entries(
                     user_id=e.user_id,
                     title=decrypted_title,
                     content=decrypted_content,
-                    summary=decrypt_data(
-                        e.encrypted_summary, data_key) if e.encrypted_summary is not None else None,
+                    summary=(
+                        decrypt_data(e.encrypted_summary, data_key)
+                        if e.encrypted_summary is not None
+                        else None
+                    ),
                     mood_rating=e.mood_rating,
                     tags=e.tags,
                     is_draft=e.is_draft,
@@ -292,33 +309,39 @@ def search_entries(
         # Decrypt and filter all entries
         filtered_entries = []
         for e in all_entries:
-            decrypted_title = decrypt_data(
-                e.title, data_key) if e.title is not None else None
+            decrypted_title = (
+                decrypt_data(e.title, data_key) if e.title is not None else None
+            )
             decrypted_content = decrypt_data(e.encrypted_content, data_key)
 
             # Search in title and content
-            title_match = decrypted_title and search_query in decrypted_title.lower(
-            ) if decrypted_title else False
+            title_match = (
+                decrypted_title and search_query in decrypted_title.lower()
+                if decrypted_title
+                else False
+            )
             content_match = search_query in decrypted_content.lower()
 
             if title_match or content_match:
-                filtered_entries.append({
-                    'entry': e,
-                    'decrypted_title': decrypted_title,
-                    'decrypted_content': decrypted_content,
-                })
+                filtered_entries.append(
+                    {
+                        "entry": e,
+                        "decrypted_title": decrypted_title,
+                        "decrypted_content": decrypted_content,
+                    }
+                )
 
         # Apply pagination to filtered results
         total = len(filtered_entries)
         offset = (page - 1) * per_page
-        paginated_filtered = filtered_entries[offset:offset + per_page]
+        paginated_filtered = filtered_entries[offset : offset + per_page]
 
         # Build response entries
         response_entries = []
         for item in paginated_filtered:
-            e = item['entry']
-            decrypted_title = item['decrypted_title']
-            decrypted_content = item['decrypted_content']
+            e = item["entry"]
+            decrypted_title = item["decrypted_title"]
+            decrypted_content = item["decrypted_content"]
 
             response_entries.append(
                 EntryResponse(
@@ -326,8 +349,11 @@ def search_entries(
                     user_id=e.user_id,
                     title=decrypted_title,
                     content=decrypted_content,
-                    summary=decrypt_data(
-                        e.encrypted_summary, data_key) if e.encrypted_summary is not None else None,
+                    summary=(
+                        decrypt_data(e.encrypted_summary, data_key)
+                        if e.encrypted_summary is not None
+                        else None
+                    ),
                     mood_rating=e.mood_rating,
                     tags=e.tags,
                     is_draft=e.is_draft,
@@ -344,7 +370,7 @@ def search_entries(
         total=total,
         page=page,
         per_page=per_page,
-        total_pages=total_pages
+        total_pages=total_pages,
     )
 
 
@@ -352,7 +378,7 @@ def search_entries(
 def get_entry(
     entry_id: UUID,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     """Get a specific diary entry by ID"""
     # Use lazy-loaded services
@@ -367,19 +393,20 @@ def get_entry(
 
     if not entry:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Entry not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found"
         )
 
     data_key = get_user_data_key(session, user_id=current_user.id)
     return EntryResponse(
         id=entry.id,
         user_id=entry.user_id,
-        title=decrypt_data(
-            entry.title, data_key) if entry.title is not None else None,
+        title=decrypt_data(entry.title, data_key) if entry.title is not None else None,
         content=decrypt_data(entry.encrypted_content, data_key),
-        summary=decrypt_data(
-            entry.encrypted_summary, data_key) if entry.encrypted_summary is not None else None,
+        summary=(
+            decrypt_data(entry.encrypted_summary, data_key)
+            if entry.encrypted_summary is not None
+            else None
+        ),
         mood_rating=entry.mood_rating,
         tags=entry.tags,
         is_draft=entry.is_draft,
@@ -395,7 +422,7 @@ def update_entry(
     entry_data: EntryUpdate,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     """Update a diary entry (full/replace semantics)"""
 
@@ -424,8 +451,7 @@ def update_entry(
 
     if entry is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Entry not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found"
         )
 
     # Only analyze if entry is not a draft and content was updated
@@ -436,17 +462,19 @@ def update_entry(
             entry.id,
             entry_data.content,
             current_user.id,
-            data_key
+            data_key,
         )
 
     return EntryResponse(
         id=entry.id,
         user_id=entry.user_id,
-        title=decrypt_data(
-            entry.title, data_key) if entry.title is not None else None,
+        title=decrypt_data(entry.title, data_key) if entry.title is not None else None,
         content=decrypt_data(entry.encrypted_content, data_key),
-        summary=decrypt_data(
-            entry.encrypted_summary, data_key) if entry.encrypted_summary is not None else None,
+        summary=(
+            decrypt_data(entry.encrypted_summary, data_key)
+            if entry.encrypted_summary is not None
+            else None
+        ),
         mood_rating=entry.mood_rating,
         tags=entry.tags,
         is_draft=entry.is_draft,
@@ -462,7 +490,7 @@ def patch_entry(
     entry_data: EntryUpdate,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     """Partially update a diary entry (PATCH semantics)"""
     # Import encryption functions lazily
@@ -478,8 +506,7 @@ def patch_entry(
 
     if existing_entry is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Entry not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found"
         )
 
     was_draft = existing_entry.is_draft
@@ -515,7 +542,8 @@ def patch_entry(
             content_for_analysis = entry_data.content
         else:
             content_for_analysis = decrypt_data(
-                existing_entry.encrypted_content, data_key)
+                existing_entry.encrypted_content, data_key
+            )
 
     # Case 2: Content was updated and entry is not a draft
     elif entry_data.content is not None and not entry.is_draft:
@@ -528,17 +556,19 @@ def patch_entry(
             entry.id,
             content_for_analysis,
             current_user.id,
-            data_key
+            data_key,
         )
 
     return EntryResponse(
         id=entry.id,
         user_id=entry.user_id,
-        title=decrypt_data(
-            entry.title, data_key) if entry.title is not None else None,
+        title=decrypt_data(entry.title, data_key) if entry.title is not None else None,
         content=decrypt_data(entry.encrypted_content, data_key),
-        summary=decrypt_data(
-            entry.encrypted_summary, data_key) if entry.encrypted_summary is not None else None,
+        summary=(
+            decrypt_data(entry.encrypted_summary, data_key)
+            if entry.encrypted_summary is not None
+            else None
+        ),
         mood_rating=entry.mood_rating,
         tags=entry.tags,
         is_draft=entry.is_draft,
@@ -552,7 +582,7 @@ def patch_entry(
 def delete_entry(
     entry_id: UUID,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     """Delete a diary entry"""
     entry = entry_crud.get_entry_by_id(
@@ -563,8 +593,7 @@ def delete_entry(
 
     if not entry:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Entry not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found"
         )
     entry_crud.delete_entry(
         session,
@@ -575,15 +604,18 @@ def delete_entry(
     return None
 
 
-@router.post("/from-audio", response_model=EntryResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/from-audio", response_model=EntryResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_entry_from_audio(
     background_tasks: BackgroundTasks,
-    audio_file: UploadFile = File(...,
-                                  description="Audio file to transcribe (MP3, WAV, etc.)"),
+    audio_file: UploadFile = File(
+        ..., description="Audio file to transcribe (MP3, WAV, etc.)"
+    ),
     title: Optional[str] = None,
     tags: Optional[List[str]] = None,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     """
     Create a new diary entry from audio file.
@@ -598,7 +630,7 @@ async def create_entry_from_audio(
     if not audio_service.validate_audio_file(audio_file):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid audio file type. Supported formats: MP3, WAV, M4A, OGG, WEBM"
+            detail="Invalid audio file type. Supported formats: MP3, WAV, M4A, OGG, WEBM",
         )
 
     # Transcribe audio to text
@@ -607,14 +639,14 @@ async def create_entry_from_audio(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Audio transcription failed: {str(e)}"
+            detail=f"Audio transcription failed: {str(e)}",
         )
 
     # Validate transcription result
     if not content or not content.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No speech detected in audio file. Please check the audio quality."
+            detail="No speech detected in audio file. Please check the audio quality.",
         )
 
     # Now treat the transcribed text as a regular entry
@@ -624,8 +656,7 @@ async def create_entry_from_audio(
 
     data_key = get_user_data_key(session, user_id=current_user.id)
     encrypted_content = encrypt_data(content, data_key)
-    encrypted_title = encrypt_data(
-        title, data_key) if title is not None else None
+    encrypted_title = encrypt_data(title, data_key) if title is not None else None
 
     entry = entry_crud.create_entry(
         session,
@@ -638,11 +669,7 @@ async def create_entry_from_audio(
 
     # Background AI analysis (sentiment + theme extraction)
     background_tasks.add_task(
-        analyze_entry_background,
-        entry.id,
-        content,
-        current_user.id,
-        data_key
+        analyze_entry_background, entry.id, content, current_user.id, data_key
     )
 
     return EntryResponse(
@@ -650,8 +677,11 @@ async def create_entry_from_audio(
         user_id=entry.user_id,
         title=title,
         content=content,
-        summary=decrypt_data(
-            entry.encrypted_summary, data_key) if entry.encrypted_summary is not None else None,
+        summary=(
+            decrypt_data(entry.encrypted_summary, data_key)
+            if entry.encrypted_summary is not None
+            else None
+        ),
         mood_rating=entry.mood_rating,
         tags=entry.tags,
         created_at=entry.created_at,
@@ -697,6 +727,7 @@ def analyze_sentiment(content: str) -> float:
     Returns float between -2.0 (very negative) and 2.0 (very positive)
     """
     from app.services.entry_analysis_service import MoodAnalysisService
+
     mood_analysis_service = MoodAnalysisService()
     analysis = mood_analysis_service.analyze_entry(content)
     return analysis["mood_rating"]
@@ -705,6 +736,7 @@ def analyze_sentiment(content: str) -> float:
 def extract_themes(content: str) -> List[str]:
     """Extract key themes and topics from diary entry"""
     from app.services.entry_analysis_service import MoodAnalysisService
+
     mood_analysis_service = MoodAnalysisService()
     analysis = mood_analysis_service.analyze_entry(content)
     return analysis["tags"]

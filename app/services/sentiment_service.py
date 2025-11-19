@@ -24,13 +24,11 @@ class MultilingualSentimentAnalyzer:
         if isinstance(prediction, list) and isinstance(prediction[0], list):
             prediction = prediction[0]
 
-        mood_score = sum(weights[item["label"]] * item["score"]
-                         for item in prediction)
+        mood_score = sum(weights[item["label"]] * item["score"] for item in prediction)
         return round(mood_score, 3)
 
     def analyze_sentiment_sync(self, text: str) -> float:
         """Analyze sentiment of text synchronously"""
-        response = requests.post(
-            API_URL, headers=self.headers, json={"inputs": text})
+        response = requests.post(API_URL, headers=self.headers, json={"inputs": text})
         response.raise_for_status()
         return self.mood_rating_from_prediction(response.json())

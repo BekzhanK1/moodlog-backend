@@ -10,7 +10,7 @@ app = FastAPI(
     description="A personal mood journal and diary web application",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
 # Configure CORS
@@ -41,8 +41,4 @@ def health_check():
 @app.get("/")
 def root():
     """Root endpoint"""
-    return {
-        "message": "Welcome to MoodLog API",
-        "version": "1.0.0",
-        "docs": "/docs"
-    }
+    return {"message": "Welcome to MoodLog API", "version": "1.0.0", "docs": "/docs"}

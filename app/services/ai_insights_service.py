@@ -42,7 +42,8 @@ class AIInsightsService:
         # Decrypt entries before generating insights
         data_key = get_user_data_key(session, user_id=user_id)
         insights_text = self._generate_monthly_insights(
-            valid_entries, year, month, use_pro_model, data_key)
+            valid_entries, year, month, use_pro_model, data_key
+        )
         if not insights_text:
             return None
         period_key = f"{year}-{month:02d}"
@@ -72,8 +73,7 @@ class AIInsightsService:
     ) -> Optional[str]:
         try:
             model = self.pro_model if use_pro_model else self.mini_model  # type: ignore
-            prompt = self._get_monthly_insights_prompt(
-                entries, year, month, data_key)
+            prompt = self._get_monthly_insights_prompt(entries, year, month, data_key)
             response = self.client.chat.completions.create(
                 model=model,
                 response_format={"type": "json_object"},
@@ -98,8 +98,7 @@ class AIInsightsService:
             raw = response.choices[0].message.content.strip()
             try:
                 parsed = json.loads(raw)
-                insights = json.dumps(
-                    parsed, ensure_ascii=False, separators=(",", ":"))
+                insights = json.dumps(parsed, ensure_ascii=False, separators=(",", ":"))
             except Exception:
                 insights = raw
             return insights
@@ -107,12 +106,19 @@ class AIInsightsService:
             print(f"Error generating monthly insights: {e}")
             return None
 
-    def _get_monthly_insights_prompt(self, entries: List[Entry], year: int, month: int, data_key: Optional[str] = None) -> str:
+    def _get_monthly_insights_prompt(
+        self,
+        entries: List[Entry],
+        year: int,
+        month: int,
+        data_key: Optional[str] = None,
+    ) -> str:
         month_name = calendar.month_name[month]
         condensed = self._condense_entries(
-            entries, max_entries=60, max_chars_per_entry=1500, data_key=data_key)
+            entries, max_entries=60, max_chars_per_entry=1500, data_key=data_key
+        )
         schema = (
-            f'{{\n'
+            f"{{\n"
             f'  "period": {{"type":"monthly","label":"{month_name} {year}","key":"{year}-{month:02d}"}},\n'
             f'  "language": string,\n'
             f'  "overview": string,\n'
@@ -121,7 +127,7 @@ class AIInsightsService:
             f'  "notable_moments": [{{"title": string|null, "date": string|null, "summary": string}}],\n'
             f'  "suggestions": [string],\n'
             f'  "meta": {{"tokens_used": number|null}}\n'
-            f'}}'
+            f"}}"
         )
         return (
             f"Generate a concise monthly insights report for {month_name} {year} as a single valid JSON object. "
@@ -158,7 +164,8 @@ class AIInsightsService:
             return None
         data_key = get_user_data_key(session, user_id=user_id)
         insights_text = self._generate_weekly_insights(
-            valid_entries, year, week, use_pro_model, data_key)
+            valid_entries, year, week, use_pro_model, data_key
+        )
         if not insights_text:
             return None
         period_key = f"{year}-W{week:02d}"
@@ -187,7 +194,8 @@ class AIInsightsService:
         try:
             model = self.pro_model if use_pro_model else self.mini_model  # type: ignore
             prompt = self._get_weekly_insights_prompt(
-                entries, iso_year, iso_week, data_key)
+                entries, iso_year, iso_week, data_key
+            )
             response = self.client.chat.completions.create(
                 model=model,
                 response_format={"type": "json_object"},
@@ -212,8 +220,7 @@ class AIInsightsService:
             raw = response.choices[0].message.content.strip()
             try:
                 parsed = json.loads(raw)
-                insights = json.dumps(
-                    parsed, ensure_ascii=False, separators=(",", ":"))
+                insights = json.dumps(parsed, ensure_ascii=False, separators=(",", ":"))
             except Exception:
                 insights = raw
             return insights
@@ -221,12 +228,19 @@ class AIInsightsService:
             print(f"Error generating weekly insights: {e}")
             return None
 
-    def _get_weekly_insights_prompt(self, entries: List[Entry], iso_year: int, iso_week: int, data_key: Optional[str] = None) -> str:
+    def _get_weekly_insights_prompt(
+        self,
+        entries: List[Entry],
+        iso_year: int,
+        iso_week: int,
+        data_key: Optional[str] = None,
+    ) -> str:
         week_label = f"Week {iso_week}, {iso_year}"
         condensed = self._condense_entries(
-            entries, max_entries=40, max_chars_per_entry=1000, data_key=data_key)
+            entries, max_entries=40, max_chars_per_entry=1000, data_key=data_key
+        )
         schema = (
-            f'{{\n'
+            f"{{\n"
             f'  "period": {{"type":"weekly","label":"{week_label}","key":"{iso_year}-W{iso_week:02d}"}},\n'
             f'  "language": string,\n'
             f'  "overview": string,\n'
@@ -235,7 +249,7 @@ class AIInsightsService:
             f'  "notable_moments": [{{"title": string|null, "date": string|null, "summary": string}}],\n'
             f'  "suggestions": [string],\n'
             f'  "meta": {{"tokens_used": number|null}}\n'
-            f'}}'
+            f"}}"
         )
         return (
             f"Generate a concise weekly insights report for {week_label} as a single valid JSON object. "
@@ -261,7 +275,9 @@ class AIInsightsService:
                 break
             # Decrypt entry content/summary if data_key is provided
             if data_key:
-                encrypted_text = entry.encrypted_summary or entry.encrypted_content or ""
+                encrypted_text = (
+                    entry.encrypted_summary or entry.encrypted_content or ""
+                )
                 if encrypted_text:
                     try:
                         text = decrypt_data(encrypted_text, data_key)
@@ -281,9 +297,7 @@ class AIInsightsService:
                 f"{entry.mood_rating:.2f}" if entry.mood_rating is not None else "N/A"
             )
             tags_str = ", ".join(entry.tags) if entry.tags else ""
-            rows.append(
-                f"- [{date_str}] mood={rating_str} tags=[{tags_str}]\n{text}"
-            )
+            rows.append(f"- [{date_str}] mood={rating_str} tags=[{tags_str}]\n{text}")
         return "\n".join(rows)
 
     def _get_month_date_range(self, year: int, month: int) -> tuple[date, date]:

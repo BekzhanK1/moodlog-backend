@@ -1,14 +1,14 @@
 from sqlmodel import SQLModel, create_engine, Session
 from app.core.config import settings
-import os
 
 
 # Create engine based on environment
 engine = create_engine(
     settings.get_database_url,
     echo=False,  # Disable SQL query logging
-    connect_args={
-        "check_same_thread": False} if "sqlite" in settings.get_database_url else {}
+    connect_args=(
+        {"check_same_thread": False} if "sqlite" in settings.get_database_url else {}
+    ),
 )
 
 

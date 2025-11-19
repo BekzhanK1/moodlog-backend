@@ -30,15 +30,12 @@ class AISummarizerService:
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a helpful assistant that creates concise, meaningful summaries of diary entries. You preserve the emotional tone, key events, and important details while making the summary clear and readable. Always respond in the same language as the diary entry."
+                        "content": "You are a helpful assistant that creates concise, meaningful summaries of diary entries. You preserve the emotional tone, key events, and important details while making the summary clear and readable. Always respond in the same language as the diary entry.",
                     },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=0.3,  # Lower temperature for more consistent summaries
-                max_tokens=200  # Enough for ~100 word summary
+                max_tokens=200,  # Enough for ~100 word summary
             )
 
             summary = response.choices[0].message.content.strip()

@@ -4,6 +4,7 @@ from sqlmodel import Relationship, SQLModel, Field
 from uuid import UUID
 from .user import User
 
+
 class EncryptionKey(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
     user_id: UUID = Field(foreign_key="user.id")

@@ -16,7 +16,8 @@ class Entry(SQLModel, table=True):
     # AI-analyzed sentiment (-1.0 to +1.0)
     mood_rating: Optional[float] = Field(default=None, ge=-1.0, le=1.0)
     tags: Optional[List[str]] = Field(
-        default=None, sa_column=Column(JSON))  # AI-extracted themes/tags
+        default=None, sa_column=Column(JSON)
+    )  # AI-extracted themes/tags
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     # When AI analysis was completed

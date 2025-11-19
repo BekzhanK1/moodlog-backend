@@ -6,7 +6,7 @@ from .auth import Token, TokenData
 
 __all__ = [
     "UserCreate",
-    "UserLogin", 
+    "UserLogin",
     "UserResponse",
     "EntryCreate",
     "EntryUpdate",
@@ -15,6 +15,5 @@ __all__ = [
     "InsightResponse",
     "InsightListResponse",
     "Token",
-    "TokenData"
+    "TokenData",
 ]
-

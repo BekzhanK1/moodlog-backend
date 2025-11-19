@@ -71,7 +71,6 @@ def list_insights(
     if type:
         base = base.where(Insight.type == type)
     count = len(session.exec(base).all())
-    statement = base.order_by(
-        Insight.created_at.desc()).offset(offset).limit(limit)
+    statement = base.order_by(Insight.created_at.desc()).offset(offset).limit(limit)
     items = session.exec(statement).all()
     return items, count
