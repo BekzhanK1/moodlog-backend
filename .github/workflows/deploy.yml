@@ -71,8 +71,8 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
-            cd ~/moodlog/moodlog-backend
-            chmod 755 ~/moodlog/moodlog-backend/media || true
+            cd ~/moodlog-backend
+            chmod 755 ~/moodlog-backend/media || true
             docker compose down || true
             git fetch --all
             git checkout main || git checkout -b main
