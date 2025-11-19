@@ -1,8 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.session import create_db_and_tables
 from app.api.v1.deps import api_router
+from datetime import datetime
+from pathlib import Path
 
 # Create FastAPI app
 app = FastAPI(
@@ -25,6 +29,9 @@ app.add_middleware(
 # Include API routes
 app.include_router(api_router, prefix="/v1")
 
+# Setup templates
+templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
 
 @app.on_event("startup")
 def startup_event():
@@ -32,10 +39,19 @@ def startup_event():
     create_db_and_tables()
 
 
-@app.get("/health")
-def health_check():
-    """Health check endpoint"""
-    return {"status": "ok"}
+@app.get("/health", response_class=HTMLResponse)
+def health_check(request: Request):
+    """Health check endpoint with modern HTML response"""
+    current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    return templates.TemplateResponse(
+        "health.html",
+        {
+            "request": request,
+            "current_time": current_time,
+            "version": "1.0.0",
+        },
+    )
 
 
 @app.get("/")
