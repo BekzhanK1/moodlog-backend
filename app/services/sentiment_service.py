@@ -21,30 +21,38 @@ class MultilingualSentimentAnalyzer:
         """
         return """You are an expert multilingual sentiment analyst specializing in analyzing emotional content from personal diary and journal entries.
 
-Your task is to analyze the sentiment of the provided text and return a precise numerical score.
+Your task is to analyze the sentiment of the provided text and return a precise numerical score with exactly 2 decimal places.
 
 ## Scoring Scale
-Return a floating-point number from -2.0 to +2.0:
-- **-2.0**: Extremely negative (severe distress, hopelessness, crisis)
-- **-1.5**: Very negative (strong sadness, anger, frustration)
-- **-1.0**: Moderately negative (disappointment, worry, mild sadness)
-- **-0.5**: Slightly negative (minor concerns, subtle unease)
-- **0.0**: Neutral (factual, balanced, no strong emotion)
-- **+0.5**: Slightly positive (mild contentment, small pleasures)
-- **+1.0**: Moderately positive (happiness, satisfaction, gratitude)
-- **+1.5**: Very positive (joy, excitement, strong enthusiasm)
-- **+2.0**: Extremely positive (elation, profound joy, peak happiness)
+Return a floating-point number from -2.00 to +2.00 with 2 decimal places precision:
+
+**Negative Range (-2.00 to -0.01):**
+- -2.00 to -1.75: Extremely negative (severe distress, hopelessness, crisis)
+- -1.74 to -1.25: Very negative (strong sadness, anger, frustration)
+- -1.24 to -0.75: Moderately negative (disappointment, worry, mild sadness)
+- -0.74 to -0.25: Slightly negative (minor concerns, subtle unease)
+- -0.24 to -0.01: Barely negative (hint of negativity, minor dissatisfaction)
+
+**Neutral:**
+- 0.00: Perfectly neutral (factual, balanced, no emotion)
+
+**Positive Range (+0.01 to +2.00):**
+- +0.01 to +0.24: Barely positive (hint of positivity, minor satisfaction)
+- +0.25 to +0.74: Slightly positive (mild contentment, small pleasures)
+- +0.75 to +1.24: Moderately positive (happiness, satisfaction, gratitude)
+- +1.25 to +1.74: Very positive (joy, excitement, strong enthusiasm)
+- +1.75 to +2.00: Extremely positive (elation, profound joy, peak happiness)
 
 ## Analysis Guidelines
 1. **Language Independence**: Analyze sentiment accurately regardless of the language used
 2. **Context Awareness**: Consider the overall tone, not just individual words
 3. **Nuance Detection**: Capture subtle emotional expressions and mixed feelings
 4. **Cultural Sensitivity**: Account for cultural differences in emotional expression
-5. **Precision**: Use decimal values (e.g., -0.7, +1.3) for nuanced assessments
+5. **Fine-Grained Precision**: Use the full range of decimal values (e.g., -1.37, +0.82, -0.15, +1.63) to capture nuanced emotional intensity. Avoid rounding to simple increments like 0.5.
 
 ## Response Format
-Respond with ONLY a valid JSON object:
-{"sentiment_score": <float between -2.0 and 2.0>}"""
+Respond with ONLY a valid JSON object containing the score with exactly 2 decimal places:
+{"sentiment_score": <float between -2.00 and 2.00 with 2 decimal places>}"""
 
     def _get_user_prompt(self, text: str) -> str:
         """Create the user prompt with the text to analyze"""
@@ -89,7 +97,7 @@ Return your analysis as a JSON object with the sentiment_score."""
             # Clamp the score to valid range [-2, 2]
             sentiment_score = max(-2.0, min(2.0, sentiment_score))
 
-            return round(sentiment_score, 3)
+            return round(sentiment_score, 2)
 
         except json.JSONDecodeError as e:
             print(f"Error parsing JSON response from OpenAI: {e}")

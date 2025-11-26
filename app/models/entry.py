@@ -13,8 +13,8 @@ class Entry(SQLModel, table=True):
     encrypted_content: str
     encrypted_summary: Optional[str] = None
     is_draft: bool = Field(default=False)
-    # AI-analyzed sentiment (-1.0 to +1.0)
-    mood_rating: Optional[float] = Field(default=None, ge=-1.0, le=1.0)
+    # AI-analyzed sentiment (-2.0 to +2.0)
+    mood_rating: Optional[float] = Field(default=None, ge=-2.0, le=2.0)
     tags: Optional[List[str]] = Field(
         default=None, sa_column=Column(JSON)
     )  # AI-extracted themes/tags
