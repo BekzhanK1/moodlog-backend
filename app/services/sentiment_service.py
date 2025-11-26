@@ -76,7 +76,15 @@ Return your analysis as a JSON object with the sentiment_score."""
             result = json.loads(response_content)
 
             # Extract and validate the sentiment score
-            sentiment_score = float(result.get("sentiment_score", 0.0))
+            raw_score = result.get("sentiment_score")
+            if raw_score is None:
+                return 0.0
+
+            try:
+                sentiment_score = float(raw_score)
+            except (ValueError, TypeError):
+                print(f"Invalid sentiment_score value: {raw_score}")
+                return 0.0
 
             # Clamp the score to valid range [-2, 2]
             sentiment_score = max(-2.0, min(2.0, sentiment_score))
