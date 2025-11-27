@@ -149,6 +149,7 @@ def create_entry(
         summary=None,  # Will be set by background task
         tags=entry_data.tags,
         is_draft=entry_data.is_draft,
+        created_at=entry_data.created_at,
     )
 
     # Only analyze if entry is not a draft

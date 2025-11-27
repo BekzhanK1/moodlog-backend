@@ -9,6 +9,7 @@ class EntryCreate(BaseModel):
     content: str
     tags: Optional[List[str]] = None
     is_draft: Optional[bool] = False
+    created_at: Optional[datetime] = None
 
 
 class EntryUpdate(BaseModel):

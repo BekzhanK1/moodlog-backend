@@ -16,6 +16,7 @@ def create_entry(
     summary: Optional[str],
     tags: Optional[List[str]],
     is_draft: Optional[bool] = False,
+    created_at: Optional[datetime] = None,
 ) -> Entry:
     """Create a new entry for a user.
 
@@ -31,6 +32,9 @@ def create_entry(
         tags=tags,
         is_draft=is_draft,
     )
+    if created_at is not None:
+        entry.created_at = created_at
+        entry.updated_at = created_at
     session.add(entry)
     session.commit()
     session.refresh(entry)
@@ -40,7 +44,8 @@ def create_entry(
 def get_entry_by_id(
     session: Session, *, user_id: UUID, entry_id: UUID
 ) -> Optional[Entry]:
-    statement = select(Entry).where(Entry.id == entry_id, Entry.user_id == user_id)
+    statement = select(Entry).where(
+        Entry.id == entry_id, Entry.user_id == user_id)
     return session.exec(statement).first()
 
 
@@ -183,10 +188,10 @@ def search_entries(
             if e.tags and tag_to_search.lower() in [tag.lower() for tag in e.tags]
         ]
         total = len(filtered_entries)
-        paginated_entries = filtered_entries[offset : offset + limit]
+        paginated_entries = filtered_entries[offset: offset + limit]
         return paginated_entries, total
 
     # For non-tag searches, return all entries (will be filtered after decryption)
     total = len(all_entries)
-    paginated_entries = all_entries[offset : offset + limit]
+    paginated_entries = all_entries[offset: offset + limit]
     return paginated_entries, total
