@@ -6,7 +6,14 @@ from datetime import datetime
 from app.core.crypto import encrypt_data
 from app.db.session import get_session
 from app.models import User
-from app.schemas import EntryCreate, EntryUpdate, EntryResponse, EntryListResponse, BatchEntryCreate, BatchEntryResponse
+from app.schemas import (
+    EntryCreate,
+    EntryUpdate,
+    EntryResponse,
+    EntryListResponse,
+    BatchEntryCreate,
+    BatchEntryResponse,
+)
 from app.core.deps import get_current_user
 import math
 from app.crud import entry as entry_crud
@@ -19,7 +26,9 @@ from concurrent.futures import ThreadPoolExecutor
 router = APIRouter()
 
 # Thread pool executor for running blocking AI analysis tasks in parallel
-_analysis_executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="ai_analysis")
+_analysis_executor = ThreadPoolExecutor(
+    max_workers=10, thread_name_prefix="ai_analysis"
+)
 
 _encryption_service = None
 _crypto_functions = None
@@ -138,7 +147,7 @@ async def analyze_entry_background(
         loop = asyncio.get_running_loop()
     except RuntimeError:
         loop = asyncio.get_event_loop()
-    
+
     await loop.run_in_executor(
         _analysis_executor,
         _analyze_entry_sync,
@@ -209,7 +218,9 @@ def create_entry(
     )
 
 
-@router.post("/batch", response_model=BatchEntryResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/batch", response_model=BatchEntryResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_entries_batch(
     batch_data: BatchEntryCreate,
     current_user: User = Depends(get_current_user),
@@ -222,11 +233,11 @@ async def create_entries_batch(
     encrypt_data, decrypt_data = get_crypto_functions()
 
     data_key = get_user_data_key(session, user_id=current_user.id)
-    
+
     # Prepare entries data with encryption
     entries_data = []
     original_contents = []  # Store original content for background tasks
-    
+
     for entry_data in batch_data.entries:
         encrypted_content = encrypt_data(entry_data.content, data_key)
         encrypted_title = (
@@ -234,24 +245,26 @@ async def create_entries_batch(
             if entry_data.title is not None
             else None
         )
-        
-        entries_data.append({
-            'title': encrypted_title,
-            'content': encrypted_content,
-            'summary': None,  # Will be set by background task
-            'tags': entry_data.tags,
-            'is_draft': entry_data.is_draft,
-            'created_at': entry_data.created_at,
-        })
+
+        entries_data.append(
+            {
+                "title": encrypted_title,
+                "content": encrypted_content,
+                "summary": None,  # Will be set by background task
+                "tags": entry_data.tags,
+                "is_draft": entry_data.is_draft,
+                "created_at": entry_data.created_at,
+            }
+        )
         original_contents.append(entry_data.content)
-    
+
     # Create entries in batch
     created_entries_with_indices, failed_entries = entry_crud.create_entries_batch(
         session,
         user_id=current_user.id,
         entries_data=entries_data,
     )
-    
+
     # Schedule background tasks for non-draft entries asynchronously
     # Use asyncio.create_task to run them in parallel without blocking the response
     for original_index, entry in created_entries_with_indices:
@@ -267,13 +280,15 @@ async def create_entries_batch(
                     data_key,
                 )
             )
-    
+
     # Build response with decrypted data
     response_entries = [
         EntryResponse(
             id=entry.id,
             user_id=entry.user_id,
-            title=decrypt_data(entry.title, data_key) if entry.title is not None else None,
+            title=(
+                decrypt_data(entry.title, data_key) if entry.title is not None else None
+            ),
             content=original_contents[original_index],
             summary=None,  # Will be set by background task
             mood_rating=entry.mood_rating,
@@ -285,20 +300,30 @@ async def create_entries_batch(
         )
         for original_index, entry in created_entries_with_indices
     ]
-    
+
     # Build failed entries info
     failed_info = []
     for failed in failed_entries:
-        idx = failed['index']
+        idx = failed["index"]
         if idx < len(batch_data.entries):
-            failed_info.append({
-                'entry': {
-                    'content': batch_data.entries[idx].content[:100] + '...' if len(batch_data.entries[idx].content) > 100 else batch_data.entries[idx].content,
-                    'created_at': batch_data.entries[idx].created_at.isoformat() if batch_data.entries[idx].created_at else None,
-                },
-                'error': failed['error']
-            })
-    
+            failed_info.append(
+                {
+                    "entry": {
+                        "content": (
+                            batch_data.entries[idx].content[:100] + "..."
+                            if len(batch_data.entries[idx].content) > 100
+                            else batch_data.entries[idx].content
+                        ),
+                        "created_at": (
+                            batch_data.entries[idx].created_at.isoformat()
+                            if batch_data.entries[idx].created_at
+                            else None
+                        ),
+                    },
+                    "error": failed["error"],
+                }
+            )
+
     return BatchEntryResponse(
         created=response_entries,
         failed=failed_info,
