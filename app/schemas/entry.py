@@ -42,3 +42,15 @@ class EntryListResponse(BaseModel):
     page: int
     per_page: int
     total_pages: int
+
+
+class BatchEntryCreate(BaseModel):
+    entries: List[EntryCreate]
+
+
+class BatchEntryResponse(BaseModel):
+    created: List[EntryResponse]
+    failed: List[dict]  # List of entries that failed with error info
+    total_requested: int
+    total_created: int
+    total_failed: int

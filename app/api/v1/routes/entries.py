@@ -6,15 +6,20 @@ from datetime import datetime
 from app.core.crypto import encrypt_data
 from app.db.session import get_session
 from app.models import User
-from app.schemas import EntryCreate, EntryUpdate, EntryResponse, EntryListResponse
+from app.schemas import EntryCreate, EntryUpdate, EntryResponse, EntryListResponse, BatchEntryCreate, BatchEntryResponse
 from app.core.deps import get_current_user
 import math
 from app.crud import entry as entry_crud
 from fastapi import File, UploadFile
 from app.services.audio_transcription_service import AudioTranscriptionService
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 
 router = APIRouter()
+
+# Thread pool executor for running blocking AI analysis tasks in parallel
+_analysis_executor = ThreadPoolExecutor(max_workers=10, thread_name_prefix="ai_analysis")
 
 _encryption_service = None
 _crypto_functions = None
@@ -71,10 +76,11 @@ def get_summarizer_service():
     return _summarizer_service
 
 
-async def analyze_entry_background(
+def _analyze_entry_sync(
     entry_id: UUID, content: str, user_id: UUID, data_key: Optional[str] = None
 ):
-    """Background task to analyze entry content and update the database"""
+    """Synchronous function to analyze entry content and update the database.
+    This runs in a thread pool executor to avoid blocking."""
     try:
         # Use lazy-loaded analysis service
         mood_analysis_service = get_analysis_service()
@@ -119,6 +125,22 @@ async def analyze_entry_background(
                 print(f"❌ Entry {entry_id} not found for analysis")
     except Exception as e:
         print(f"❌ Error in background analysis for entry {entry_id}: {e}")
+
+
+async def analyze_entry_background(
+    entry_id: UUID, content: str, user_id: UUID, data_key: Optional[str] = None
+):
+    """Background task to analyze entry content and update the database.
+    Runs the blocking analysis in a thread pool executor for parallel processing."""
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(
+        _analysis_executor,
+        _analyze_entry_sync,
+        entry_id,
+        content,
+        user_id,
+        data_key,
+    )
 
 
 @router.post("/", response_model=EntryResponse, status_code=status.HTTP_201_CREATED)
@@ -178,6 +200,105 @@ def create_entry(
         created_at=entry.created_at,
         updated_at=entry.updated_at,
         ai_processed_at=entry.ai_processed_at,
+    )
+
+
+@router.post("/batch", response_model=BatchEntryResponse, status_code=status.HTTP_201_CREATED)
+async def create_entries_batch(
+    batch_data: BatchEntryCreate,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Create multiple diary entries in a single batch request.
+    AI analysis runs asynchronously in parallel after entries are created."""
+    # Use lazy-loaded services
+    get_user_data_key = get_encryption_service()
+    encrypt_data, decrypt_data = get_crypto_functions()
+
+    data_key = get_user_data_key(session, user_id=current_user.id)
+    
+    # Prepare entries data with encryption
+    entries_data = []
+    original_contents = []  # Store original content for background tasks
+    
+    for entry_data in batch_data.entries:
+        encrypted_content = encrypt_data(entry_data.content, data_key)
+        encrypted_title = (
+            encrypt_data(entry_data.title, data_key)
+            if entry_data.title is not None
+            else None
+        )
+        
+        entries_data.append({
+            'title': encrypted_title,
+            'content': encrypted_content,
+            'summary': None,  # Will be set by background task
+            'tags': entry_data.tags,
+            'is_draft': entry_data.is_draft,
+            'created_at': entry_data.created_at,
+        })
+        original_contents.append(entry_data.content)
+    
+    # Create entries in batch
+    created_entries_with_indices, failed_entries = entry_crud.create_entries_batch(
+        session,
+        user_id=current_user.id,
+        entries_data=entries_data,
+    )
+    
+    # Schedule background tasks for non-draft entries asynchronously
+    # Use asyncio.create_task to run them in parallel without blocking the response
+    for original_index, entry in created_entries_with_indices:
+        entry_data = batch_data.entries[original_index]
+        if not entry_data.is_draft:
+            # Create task to run analysis in parallel (fire and forget)
+            # Tasks will run concurrently in the thread pool executor
+            asyncio.create_task(
+                analyze_entry_background(
+                    entry.id,
+                    original_contents[original_index],
+                    current_user.id,
+                    data_key,
+                )
+            )
+    
+    # Build response with decrypted data
+    response_entries = [
+        EntryResponse(
+            id=entry.id,
+            user_id=entry.user_id,
+            title=decrypt_data(entry.title, data_key) if entry.title is not None else None,
+            content=original_contents[original_index],
+            summary=None,  # Will be set by background task
+            mood_rating=entry.mood_rating,
+            tags=entry.tags,
+            is_draft=entry.is_draft,
+            created_at=entry.created_at,
+            updated_at=entry.updated_at,
+            ai_processed_at=entry.ai_processed_at,
+        )
+        for original_index, entry in created_entries_with_indices
+    ]
+    
+    # Build failed entries info
+    failed_info = []
+    for failed in failed_entries:
+        idx = failed['index']
+        if idx < len(batch_data.entries):
+            failed_info.append({
+                'entry': {
+                    'content': batch_data.entries[idx].content[:100] + '...' if len(batch_data.entries[idx].content) > 100 else batch_data.entries[idx].content,
+                    'created_at': batch_data.entries[idx].created_at.isoformat() if batch_data.entries[idx].created_at else None,
+                },
+                'error': failed['error']
+            })
+    
+    return BatchEntryResponse(
+        created=response_entries,
+        failed=failed_info,
+        total_requested=len(batch_data.entries),
+        total_created=len(created_entries_with_indices),
+        total_failed=len(failed_entries),
     )
 
 

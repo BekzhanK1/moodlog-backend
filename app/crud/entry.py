@@ -41,6 +41,56 @@ def create_entry(
     return entry
 
 
+def create_entries_batch(
+    session: Session,
+    *,
+    user_id: UUID,
+    entries_data: List[dict],
+) -> Tuple[List[Tuple[int, Entry]], List[dict]]:
+    """Create multiple entries in a batch.
+    
+    Returns:
+        Tuple of (created_entries_with_indices, failed_entries_info)
+        created_entries_with_indices is a list of (original_index, entry) tuples
+        failed_entries_info is a list of dicts with 'index' and 'error' keys
+    """
+    created_entries = []
+    failed_entries = []
+    
+    for index, entry_data in enumerate(entries_data):
+        try:
+            entry = Entry(
+                user_id=user_id,
+                title=entry_data.get('title'),
+                encrypted_content=entry_data.get('content'),
+                encrypted_summary=entry_data.get('summary'),
+                tags=entry_data.get('tags'),
+                is_draft=entry_data.get('is_draft', False),
+            )
+            if entry_data.get('created_at') is not None:
+                entry.created_at = entry_data['created_at']
+                entry.updated_at = entry_data['created_at']
+            session.add(entry)
+            created_entries.append((index, entry))
+        except Exception as e:
+            failed_entries.append({
+                'index': index,
+                'error': str(e)
+            })
+    
+    # Commit all successful entries in one transaction
+    try:
+        session.commit()
+        # Refresh all created entries
+        for index, entry in created_entries:
+            session.refresh(entry)
+        return created_entries, failed_entries
+    except Exception as e:
+        session.rollback()
+        # If batch commit fails, mark all as failed
+        return [], [{'index': i, 'error': f'Batch commit failed: {str(e)}'} for i in range(len(entries_data))]
+
+
 def get_entry_by_id(
     session: Session, *, user_id: UUID, entry_id: UUID
 ) -> Optional[Entry]:
