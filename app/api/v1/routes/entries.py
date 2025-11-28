@@ -527,6 +527,61 @@ def search_entries(
     )
 
 
+@router.get("/question", response_model=dict)
+def get_writing_question(
+    n: int = Query(
+        default=5, ge=1, le=10, description="Number of recent entries to analyze"
+    ),
+    num_questions: int = Query(
+        default=3, ge=2, le=5, description="Number of questions to generate"
+    ),
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Get contextual, therapist-like questions based on recent entries"""
+    try:
+        # Get recent entries (non-draft only)
+        recent_entries = entry_crud.get_recent_entries(
+            session, user_id=current_user.id, limit=n, exclude_drafts=True
+        )
+
+        # Decrypt entries
+        get_user_data_key = get_encryption_service()
+        _, decrypt_data = get_crypto_functions()
+        data_key = get_user_data_key(session, user_id=current_user.id)
+
+        decrypted_contents = []
+        for entry in recent_entries:
+            decrypted_content = decrypt_data(entry.encrypted_content, data_key)
+            # Use summary if available (more concise), otherwise use content
+            if entry.encrypted_summary:
+                decrypted_summary = decrypt_data(entry.encrypted_summary, data_key)
+                decrypted_contents.append(decrypted_summary)
+            else:
+                decrypted_contents.append(decrypted_content)
+
+        # Generate questions
+        from app.services.question_generator_service import QuestionGeneratorService
+
+        question_service = QuestionGeneratorService()
+        questions = question_service.generate_questions(
+            decrypted_contents, max_entries=n, num_questions=num_questions
+        )
+
+        return {"questions": questions}
+
+    except Exception as e:
+        print(f"Error generating questions: {e}")
+        # Fallback to default questions
+        return {
+            "questions": [
+                "О чем вы думали в последнее время?",
+                "Что вас сейчас волнует?",
+                "Как вы себя чувствуете сегодня?",
+            ]
+        }
+
+
 @router.get("/{entry_id}", response_model=EntryResponse)
 def get_entry(
     entry_id: UUID,

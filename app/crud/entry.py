@@ -189,6 +189,34 @@ def get_entries_by_date_range(
     return entries
 
 
+def get_recent_entries(
+    session: Session,
+    *,
+    user_id: UUID,
+    limit: int = 5,
+    exclude_drafts: bool = True,
+) -> List[Entry]:
+    """Get recent entries for a user, ordered by created_at descending.
+
+    Args:
+        session: Database session
+        user_id: User ID
+        limit: Maximum number of entries to return
+        exclude_drafts: If True, exclude draft entries
+
+    Returns:
+        List of Entry objects, most recent first
+    """
+    statement = select(Entry).where(Entry.user_id == user_id)
+
+    if exclude_drafts:
+        statement = statement.where(not Entry.is_draft)
+
+    statement = statement.order_by(Entry.created_at.desc()).limit(limit)
+    entries = session.exec(statement).all()
+    return entries
+
+
 def search_entries(
     session: Session,
     *,
