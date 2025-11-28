@@ -56,9 +56,32 @@ class AudioTranscriptionService:
             "audio/m4a",
             "audio/ogg",
             "audio/x-m4a",
+            "audio/x-wav",  # Alternative WAV MIME type
+            "audio/vnd.wave",  # Another WAV variant
         ]
-        print(f"Validating audio file: {audio_file.content_type}")
-        print(f"Allowed types: {allowed_types}")
-        print(f"Content type: {audio_file.content_type}")
-        print(f"Is allowed: {audio_file.content_type in allowed_types}")
-        return audio_file.content_type in allowed_types
+        
+        # Check MIME type
+        content_type = audio_file.content_type or ""
+        if content_type in allowed_types:
+            print(f"Audio file validated by MIME type: {content_type}")
+            return True
+        
+        # Fallback: check file extension if MIME type is missing or not recognized
+        filename = audio_file.filename or ""
+        allowed_extensions = [".mp3", ".wav", ".webm", ".m4a", ".ogg", ".mp4"]
+        
+        if filename:
+            file_ext = filename.lower()
+            for ext in allowed_extensions:
+                if file_ext.endswith(ext):
+                    print(f"Audio file validated by extension: {filename} (MIME type was: {content_type})")
+                    return True
+        
+        # If content type starts with "audio/" but wasn't in our list, accept it anyway
+        # (some browsers might send slightly different MIME types)
+        if content_type.startswith("audio/"):
+            print(f"Audio file validated by audio/* prefix: {content_type}")
+            return True
+        
+        print(f"Audio file validation failed. Content type: {content_type}, Filename: {filename}")
+        return False

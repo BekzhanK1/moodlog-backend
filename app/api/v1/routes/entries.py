@@ -132,7 +132,13 @@ async def analyze_entry_background(
 ):
     """Background task to analyze entry content and update the database.
     Runs the blocking analysis in a thread pool executor for parallel processing."""
-    loop = asyncio.get_event_loop()
+    # Use get_running_loop() for Python 3.7+ (more reliable in async contexts)
+    # Falls back to get_event_loop() if not in a running loop (e.g., called from BackgroundTasks)
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.get_event_loop()
+    
     await loop.run_in_executor(
         _analysis_executor,
         _analyze_entry_sync,
@@ -730,7 +736,6 @@ def delete_entry(
     "/from-audio", response_model=EntryResponse, status_code=status.HTTP_201_CREATED
 )
 async def create_entry_from_audio(
-    background_tasks: BackgroundTasks,
     audio_file: UploadFile = File(
         ..., description="Audio file to transcribe (MP3, WAV, etc.)"
     ),
@@ -790,8 +795,9 @@ async def create_entry_from_audio(
     )
 
     # Background AI analysis (sentiment + theme extraction)
-    background_tasks.add_task(
-        analyze_entry_background, entry.id, content, current_user.id, data_key
+    # Use asyncio.create_task for parallel execution since this endpoint is already async
+    asyncio.create_task(
+        analyze_entry_background(entry.id, content, current_user.id, data_key)
     )
 
     return EntryResponse(
