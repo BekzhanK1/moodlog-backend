@@ -94,7 +94,8 @@ def create_entries_batch(
 def get_entry_by_id(
     session: Session, *, user_id: UUID, entry_id: UUID
 ) -> Optional[Entry]:
-    statement = select(Entry).where(Entry.id == entry_id, Entry.user_id == user_id)
+    statement = select(Entry).where(
+        Entry.id == entry_id, Entry.user_id == user_id)
     return session.exec(statement).first()
 
 
@@ -210,7 +211,7 @@ def get_recent_entries(
     statement = select(Entry).where(Entry.user_id == user_id)
 
     if exclude_drafts:
-        statement = statement.where(not Entry.is_draft)
+        statement = statement.where(Entry.is_draft == False)
 
     statement = statement.order_by(Entry.created_at.desc()).limit(limit)
     entries = session.exec(statement).all()
@@ -265,10 +266,10 @@ def search_entries(
             if e.tags and tag_to_search.lower() in [tag.lower() for tag in e.tags]
         ]
         total = len(filtered_entries)
-        paginated_entries = filtered_entries[offset : offset + limit]
+        paginated_entries = filtered_entries[offset: offset + limit]
         return paginated_entries, total
 
     # For non-tag searches, return all entries (will be filtered after decryption)
     total = len(all_entries)
-    paginated_entries = all_entries[offset : offset + limit]
+    paginated_entries = all_entries[offset: offset + limit]
     return paginated_entries, total

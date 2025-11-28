@@ -36,7 +36,8 @@ class QuestionGeneratorService:
             # Limit to last N entries
             entries_to_analyze = recent_entries[:max_entries]
 
-            prompt = self._create_questions_prompt(entries_to_analyze, num_questions)
+            prompt = self._create_questions_prompt(
+                entries_to_analyze, num_questions)
 
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -59,6 +60,7 @@ class QuestionGeneratorService:
             )
 
             questions_text = response.choices[0].message.content.strip()
+            print(f"Raw AI response: {questions_text}")
 
             # Parse questions - they might be separated by newlines, numbers, or bullets
             questions = []
@@ -70,8 +72,12 @@ class QuestionGeneratorService:
                 line = line.lstrip("0123456789.-•) ")
                 # Remove quotes if present
                 line = line.strip('"').strip("'").strip()
-                if line and line.endswith("?"):
+                # Check if line ends with ? or is a valid question
+                if line and (line.endswith("?") or len(line) > 10):
                     questions.append(line)
+
+            print(
+                f"Parsed {len(questions)} questions from AI response: {questions}")
 
             # If we didn't get enough questions, add defaults
             if len(questions) < num_questions:
@@ -80,7 +86,8 @@ class QuestionGeneratorService:
                     "Что вас сейчас волнует?",
                     "Как вы себя чувствуете сегодня?",
                 ]
-                questions.extend(default_questions[: num_questions - len(questions)])
+                questions.extend(
+                    default_questions[: num_questions - len(questions)])
 
             return questions[:num_questions]  # Return only requested number
 
@@ -97,7 +104,8 @@ class QuestionGeneratorService:
         """Create a prompt for generating multiple contextual questions"""
         entries_text = "\n\n---\n\n".join(
             [
-                f"Запись {i+1}:\n{entry[:500]}"  # Limit each entry to 500 chars
+                # Limit each entry to 500 chars
+                f"Запись {i+1}:\n{entry[:500]}"
                 for i, entry in enumerate(entries)
             ]
         )
