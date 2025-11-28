@@ -544,7 +544,7 @@ def get_writing_question(
         recent_entries = entry_crud.get_recent_entries(
             session, user_id=current_user.id, limit=n, exclude_drafts=True
         )
-        
+
         print(f"Found {len(recent_entries)} recent entries for user {current_user.id}")
 
         # Decrypt entries
@@ -562,7 +562,9 @@ def get_writing_question(
             else:
                 decrypted_contents.append(decrypted_content)
 
-        print(f"Decrypted {len(decrypted_contents)} entries, generating {num_questions} questions")
+        print(
+            f"Decrypted {len(decrypted_contents)} entries, generating {num_questions} questions"
+        )
 
         # Generate questions
         from app.services.question_generator_service import QuestionGeneratorService
@@ -571,13 +573,14 @@ def get_writing_question(
         questions = question_service.generate_questions(
             decrypted_contents, max_entries=n, num_questions=num_questions
         )
-        
+
         print(f"Generated {len(questions)} questions: {questions}")
 
         return {"questions": questions}
 
     except Exception as e:
         import traceback
+
         print(f"Error generating questions: {e}")
         traceback.print_exc()
         # Fallback to default questions
