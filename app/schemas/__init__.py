@@ -10,6 +10,7 @@ from .entry import (
 )
 from .insight import InsightResponse, InsightListResponse
 from .auth import Token, TokenData
+from .user_characteristic import UserCharacteristicResponse
 
 __all__ = [
     "UserCreate",
@@ -25,4 +26,5 @@ __all__ = [
     "InsightListResponse",
     "Token",
     "TokenData",
+    "UserCharacteristicResponse",
 ]

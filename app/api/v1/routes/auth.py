@@ -6,7 +6,13 @@ from fastapi.responses import RedirectResponse
 from sqlmodel import Session
 from app.db.session import get_session
 from app.models import User
-from app.schemas import UserCreate, UserLogin, UserResponse, Token
+from app.schemas import (
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    Token,
+    UserCharacteristicResponse,
+)
 from app.core.security import (
     get_password_hash,
     verify_password,
@@ -107,6 +113,37 @@ def refresh_token(
 def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current user information"""
     return current_user
+
+
+@router.get("/characteristics", response_model=UserCharacteristicResponse)
+def get_user_characteristics(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Get user characteristics"""
+    from app.crud import user_characteristic as char_crud
+
+    characteristic = char_crud.get_user_characteristic(session, user_id=current_user.id)
+
+    if not characteristic:
+        # Return empty/default characteristics
+        return UserCharacteristicResponse()
+
+    # Convert to response format
+    emotional_profile = None
+    if characteristic.emotional_profile:
+        emotional_profile = characteristic.emotional_profile
+
+    writing_style = None
+    if characteristic.writing_style:
+        writing_style = characteristic.writing_style
+
+    return UserCharacteristicResponse(
+        general_description=characteristic.general_description,
+        main_themes=characteristic.main_themes,
+        emotional_profile=emotional_profile,
+        writing_style=writing_style,
+    )
 
 
 @router.get("/google/login")

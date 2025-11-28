@@ -3,5 +3,6 @@ from .user import User
 from .entry import Entry
 from .encryption_key import EncryptionKey
 from .insight import Insight
+from .user_characteristic import UserCharacteristic
 
-__all__ = ["User", "Entry", "EncryptionKey", "Insight"]
+__all__ = ["User", "Entry", "EncryptionKey", "Insight", "UserCharacteristic"]

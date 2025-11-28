@@ -24,3 +24,6 @@ type-check:
 
 test:
 	pytest
+
+generate-characteristics:
+	python -m app.scripts.generate_characteristics

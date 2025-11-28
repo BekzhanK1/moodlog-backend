@@ -130,10 +130,74 @@ def _analyze_entry_sync(
                 entry.ai_processed_at = datetime.utcnow()
                 session.commit()
                 print(f"✅ AI analysis completed for entry {entry_id}")
+
+                # Update user characteristics after entry analysis
+                try:
+                    _update_user_characteristics_sync(user_id, data_key)
+                except Exception as char_error:
+                    print(f"⚠️ Error updating characteristics: {char_error}")
             else:
                 print(f"❌ Entry {entry_id} not found for analysis")
     except Exception as e:
         print(f"❌ Error in background analysis for entry {entry_id}: {e}")
+
+
+def _update_user_characteristics_sync(user_id: UUID, data_key: str):
+    """Update user characteristics based on all their entries"""
+    from sqlmodel import Session
+    from app.db.session import engine
+    from app.crud import entry as entry_crud
+    from app.crud import user_characteristic as char_crud
+    from app.services.characteristic_generator_service import (
+        CharacteristicGeneratorService,
+    )
+    from app.core.crypto import decrypt_data
+
+    with Session(engine) as session:
+        # Get all non-draft entries for the user
+        all_entries = entry_crud.get_recent_entries(
+            session, user_id=user_id, limit=50, exclude_drafts=True
+        )
+
+        if not all_entries:
+            return
+
+        # Decrypt entries and collect data
+        decrypted_contents = []
+        mood_ratings = []
+        tags_list = []
+
+        for entry in all_entries:
+            decrypted_content = decrypt_data(entry.encrypted_content, data_key)
+            # Use summary if available, otherwise content
+            if entry.encrypted_summary:
+                decrypted_summary = decrypt_data(entry.encrypted_summary, data_key)
+                decrypted_contents.append(decrypted_summary)
+            else:
+                decrypted_contents.append(decrypted_content)
+
+            mood_ratings.append(
+                entry.mood_rating if entry.mood_rating is not None else 0.0
+            )
+            tags_list.append(entry.tags if entry.tags else [])
+
+        # Generate characteristics
+        char_service = CharacteristicGeneratorService()
+        characteristics = char_service.generate_characteristics(
+            decrypted_contents, mood_ratings, tags_list
+        )
+
+        # Save characteristics
+        char_crud.create_or_update_characteristic(
+            session,
+            user_id=user_id,
+            general_description=characteristics.get("general_description"),
+            main_themes=characteristics.get("main_themes"),
+            emotional_profile=characteristics.get("emotional_profile"),
+            writing_style=characteristics.get("writing_style"),
+        )
+
+        print(f"✅ User characteristics updated for user {user_id}")
 
 
 async def analyze_entry_background(

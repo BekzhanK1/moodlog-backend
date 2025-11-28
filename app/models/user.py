@@ -16,8 +16,10 @@ class User(SQLModel, table=True):
     # Relationships
     entries: List["Entry"] = Relationship(back_populates="user")
     encryption_key: Optional["EncryptionKey"] = Relationship(back_populates="user")
+    characteristic: Optional["UserCharacteristic"] = Relationship(back_populates="user")
 
 
 if TYPE_CHECKING:
     from .entry import Entry
     from .encryption_key import EncryptionKey
+    from .user_characteristic import UserCharacteristic
