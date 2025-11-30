@@ -36,7 +36,8 @@ class QuestionGeneratorService:
             # Limit to last N entries
             entries_to_analyze = recent_entries[:max_entries]
 
-            prompt = self._create_questions_prompt(entries_to_analyze, num_questions)
+            prompt = self._create_questions_prompt(
+                entries_to_analyze, num_questions)
 
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -44,18 +45,21 @@ class QuestionGeneratorService:
                     {
                         "role": "system",
                         "content": (
-                            "You are a supportive, empathetic therapist helping someone with their journaling. "
-                            "Generate thoughtful, open-ended questions that encourage reflection and self-exploration. "
-                            "Questions should be warm, non-judgmental, and help the person explore their thoughts and feelings. "
-                            "Always respond in Russian. Keep questions concise (one sentence, max 15 words). "
-                            "Make questions feel personal and relevant to what they've been writing about recently. "
-                            "Each question should be different and explore different aspects of their experience."
+                            "You are a supportive, empathetic therapist who has carefully read the user's journal entries. "
+                            "Your questions must demonstrate that you have truly read and understood their entries. "
+                            "Reference specific details, events, people, places, emotions, or situations mentioned in their writing. "
+                            "Questions should be warm, non-judgmental, and show genuine engagement with their content. "
+                            "Always respond in Russian. Keep questions concise (one sentence, max 20 words). "
+                            "Make each question feel like you're continuing a conversation about something specific they wrote. "
+                            "Avoid generic questions - if they mentioned work stress, ask about that specific situation. "
+                            "If they wrote about a person, reference that person. If they mentioned a feeling, explore that feeling deeper. "
+                            "Each question should reference different specific details from their entries to show you've read everything carefully."
                         ),
                     },
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.7,  # Slightly creative but still focused
-                max_tokens=200,
+                max_tokens=250,  # Increased for more detailed questions
             )
 
             questions_text = response.choices[0].message.content.strip()
@@ -75,7 +79,8 @@ class QuestionGeneratorService:
                 if line and (line.endswith("?") or len(line) > 10):
                     questions.append(line)
 
-            print(f"Parsed {len(questions)} questions from AI response: {questions}")
+            print(
+                f"Parsed {len(questions)} questions from AI response: {questions}")
 
             # If we didn't get enough questions, add defaults
             if len(questions) < num_questions:
@@ -84,7 +89,8 @@ class QuestionGeneratorService:
                     "Что вас сейчас волнует?",
                     "Как вы себя чувствуете сегодня?",
                 ]
-                questions.extend(default_questions[: num_questions - len(questions)])
+                questions.extend(
+                    default_questions[: num_questions - len(questions)])
 
             return questions[:num_questions]  # Return only requested number
 
@@ -108,16 +114,27 @@ class QuestionGeneratorService:
         )
 
         return (
-            f"Проанализируй последние записи пользователя и создай {num_questions} разных вопроса, "
-            f"которые помогут ему продолжить размышления. Каждый вопрос должен быть:\n"
-            f"- Контекстуальным (связанным с тем, о чем он писал)\n"
+            f"Внимательно прочитай следующие записи пользователя. Твоя задача - создать {num_questions} конкретных вопроса, "
+            f"которые показывают, что ты действительно прочитал и понял содержание записей.\n\n"
+            f"КРИТИЧЕСКИ ВАЖНО: Каждый вопрос ДОЛЖЕН ссылаться на конкретные детали из записей:\n"
+            f"- Упоминай конкретные события, ситуации, людей, места, которые были описаны\n"
+            f"- Ссылайся на конкретные эмоции, переживания, мысли, которые были выражены\n"
+            f"- Используй конкретные темы, проблемы, радости, которые были затронуты\n"
+            f"- Покажи, что ты заметил важные детали и хочешь узнать больше именно об этом\n\n"
+            f"Примеры ПРАВИЛЬНЫХ вопросов (если в записи упоминалась работа):\n"
+            f"✓ 'Как сейчас обстоят дела с тем проектом, о котором вы писали?'\n"
+            f"✓ 'Что изменилось в отношениях с коллегой, которого вы упоминали?'\n\n"
+            f"Примеры НЕПРАВИЛЬНЫХ (слишком общих) вопросов:\n"
+            f"✗ 'Как дела на работе?'\n"
+            f"✗ 'Что вас волнует?'\n\n"
+            f"Каждый вопрос должен быть:\n"
+            f"- Конкретным (ссылаться на детали из записей)\n"
             f"- Поддерживающим и эмпатичным\n"
             f"- Открытым (не требующим ответа да/нет)\n"
-            f"- Побуждающим к саморефлексии\n"
-            f"- Кратким (одно предложение, максимум 15 слов)\n"
-            f"- Уникальным (каждый вопрос должен исследовать разные аспекты)\n\n"
-            f"Если записи очень разные по темам, задай вопросы о разных аспектах его жизни. "
-            f"Если есть повторяющиеся темы, задай вопросы, которые углубляют эту тему с разных сторон.\n\n"
-            f"Последние записи:\n{entries_text}\n\n"
-            f"Верни {num_questions} вопроса, каждый на отдельной строке, без нумерации и дополнительного текста:"
+            f"- Кратким (одно предложение, максимум 20 слов)\n"
+            f"- Уникальным (каждый вопрос о разных конкретных деталях из записей)\n\n"
+            f"Последние записи пользователя:\n{entries_text}\n\n"
+            f"Создай {num_questions} конкретных вопроса, которые показывают, что ты внимательно прочитал записи. "
+            f"Каждый вопрос должен ссылаться на конкретные детали из текста выше. "
+            f"Верни только вопросы, каждый на отдельной строке, без нумерации и дополнительного текста:"
         )
