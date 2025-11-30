@@ -170,8 +170,7 @@ class AnalyticsService:
             current_month, current_year
         )
 
-        start_date, end_date = self._get_month_date_range(
-            current_year, current_month)
+        start_date, end_date = self._get_month_date_range(current_year, current_month)
         previous_start_date, previous_end_date = self._get_month_date_range(
             previous_year, previous_month
         )
@@ -183,10 +182,8 @@ class AnalyticsService:
             session, user_id, previous_start_date, previous_end_date
         )
 
-        current_mood_rating = self._calculate_average_mood_rating(
-            current_entries)
-        previous_mood_rating = self._calculate_average_mood_rating(
-            previous_entries)
+        current_mood_rating = self._calculate_average_mood_rating(current_entries)
+        previous_mood_rating = self._calculate_average_mood_rating(previous_entries)
 
         mood_rating_difference = None
         if current_mood_rating is not None and previous_mood_rating is not None:
