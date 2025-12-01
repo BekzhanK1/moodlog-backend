@@ -26,7 +26,12 @@ def upgrade() -> None:
     op.add_column('user', sa.Column('ai_questions_skips_reset_at', sa.DateTime(), nullable=True))
     
     # Update existing rows to have default value (in case server_default doesn't work)
-    op.execute("UPDATE user SET ai_questions_skips_count = 0 WHERE ai_questions_skips_count IS NULL")
+    # Use proper table name quoting for PostgreSQL (user is a reserved word)
+    bind = op.get_bind()
+    if bind.dialect.name == 'postgresql':
+        op.execute('UPDATE "user" SET ai_questions_skips_count = 0 WHERE ai_questions_skips_count IS NULL')
+    else:
+        op.execute("UPDATE user SET ai_questions_skips_count = 0 WHERE ai_questions_skips_count IS NULL")
     
     # Drop old columns
     op.drop_column('user', 'ai_questions_reset_used')
