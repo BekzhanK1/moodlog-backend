@@ -27,3 +27,6 @@ test:
 
 generate-characteristics:
 	python -m app.scripts.generate_characteristics
+
+create-admin:
+	python -m app.scripts.create_admin
