@@ -6,6 +6,7 @@ from .insight import Insight
 from .user_characteristic import UserCharacteristic
 from .subscription import Subscription
 from .payment import Payment
+from .promo_code import PromoCode
 
 __all__ = [
     "User",
@@ -15,4 +16,5 @@ __all__ = [
     "UserCharacteristic",
     "Subscription",
     "Payment",
+    "PromoCode",
 ]

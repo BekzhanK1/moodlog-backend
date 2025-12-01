@@ -22,6 +22,13 @@ from .subscription import (
     WebkassaWebhookRequest,
 )
 from .payment import PaymentResponse, PaymentListResponse
+from .promo_code import (
+    PromoCodeCreateRequest,
+    PromoCodeResponse,
+    PromoCodeListResponse,
+    PromoCodeRedeemRequest,
+    PromoCodeRedeemResponse,
+)
 
 __all__ = [
     "UserCreate",
@@ -48,4 +55,9 @@ __all__ = [
     "WebkassaWebhookRequest",
     "PaymentResponse",
     "PaymentListResponse",
+    "PromoCodeCreateRequest",
+    "PromoCodeResponse",
+    "PromoCodeListResponse",
+    "PromoCodeRedeemRequest",
+    "PromoCodeRedeemResponse",
 ]

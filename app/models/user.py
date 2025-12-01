@@ -34,6 +34,8 @@ class User(SQLModel, table=True):
         back_populates="user")
     subscriptions: List["Subscription"] = Relationship(back_populates="user")
     payments: List["Payment"] = Relationship(back_populates="user")
+    # Promo code relationships omitted due to multiple foreign keys to same table
+    # Use CRUD operations to query promo codes by created_by or used_by
 
 
 if TYPE_CHECKING:
@@ -42,3 +44,4 @@ if TYPE_CHECKING:
     from .user_characteristic import UserCharacteristic
     from .subscription import Subscription
     from .payment import Payment
+    from .promo_code import PromoCode
