@@ -1,5 +1,5 @@
-from sqlmodel import SQLModel, Field, Relationship, Column, JSON
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from sqlmodel import SQLModel, Field, Relationship
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID, uuid4
 

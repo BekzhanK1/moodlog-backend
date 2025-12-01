@@ -26,12 +26,16 @@ class User(SQLModel, table=True):
     # Admin field
     is_admin: bool = Field(default=False, index=True)
 
+    # AI questions skip tracking
+    # Number of skips used in current period
+    ai_questions_skips_count: int = Field(default=0)
+    # When the skip counter was last reset (cooldown start)
+    ai_questions_skips_reset_at: Optional[datetime] = None
+
     # Relationships
     entries: List["Entry"] = Relationship(back_populates="user")
-    encryption_key: Optional["EncryptionKey"] = Relationship(
-        back_populates="user")
-    characteristic: Optional["UserCharacteristic"] = Relationship(
-        back_populates="user")
+    encryption_key: Optional["EncryptionKey"] = Relationship(back_populates="user")
+    characteristic: Optional["UserCharacteristic"] = Relationship(back_populates="user")
     subscriptions: List["Subscription"] = Relationship(back_populates="user")
     payments: List["Payment"] = Relationship(back_populates="user")
     # Promo code relationships omitted due to multiple foreign keys to same table
@@ -44,4 +48,3 @@ if TYPE_CHECKING:
     from .user_characteristic import UserCharacteristic
     from .subscription import Subscription
     from .payment import Payment
-    from .promo_code import PromoCode

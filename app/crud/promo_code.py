@@ -1,6 +1,7 @@
 """
 CRUD operations for PromoCode model.
 """
+
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
@@ -22,7 +23,9 @@ def generate_promo_code(length: int = 12) -> str:
     """
     alphabet = string.ascii_uppercase + string.digits
     # Remove ambiguous characters (0, O, I, 1)
-    alphabet = alphabet.replace("0", "").replace("O", "").replace("I", "").replace("1", "")
+    alphabet = (
+        alphabet.replace("0", "").replace("O", "").replace("I", "").replace("1", "")
+    )
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
@@ -124,7 +127,7 @@ def get_all_promo_codes(
     statement = select(PromoCode)
 
     if not include_used:
-        statement = statement.where(PromoCode.is_used == False)
+        statement = statement.where(~PromoCode.is_used)
 
     if created_by:
         statement = statement.where(PromoCode.created_by == created_by)
@@ -168,4 +171,3 @@ def redeem_promo_code(
     session.commit()
     session.refresh(promo_code)
     return promo_code
-

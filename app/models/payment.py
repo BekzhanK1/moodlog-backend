@@ -1,5 +1,5 @@
 from sqlmodel import SQLModel, Field, Relationship, Column, JSON
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import Optional, Dict, Any, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID, uuid4
 
@@ -40,11 +40,11 @@ class Payment(SQLModel, table=True):
 
     # Payment metadata (stored as JSON)
     payment_metadata: Optional[Dict[str, Any]] = Field(
-        default=None, sa_column=Column(JSON))
+        default=None, sa_column=Column(JSON)
+    )
     created_at: datetime = Field(default_factory=datetime.utcnow)
     completed_at: Optional[datetime] = None
 
     # Relationships
     user: Optional["User"] = Relationship(back_populates="payments")
-    subscription: Optional["Subscription"] = Relationship(
-        back_populates="payments")
+    subscription: Optional["Subscription"] = Relationship(back_populates="payments")

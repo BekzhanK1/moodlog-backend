@@ -1,6 +1,7 @@
 """
 Schemas for promo code-related API requests and responses.
 """
+
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
@@ -51,4 +52,3 @@ class PromoCodeRedeemResponse(BaseModel):
     message: str
     plan: str
     expires_at: datetime
-

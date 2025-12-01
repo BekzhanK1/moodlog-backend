@@ -1,6 +1,7 @@
 """
 CRUD operations for Subscription model.
 """
+
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
@@ -156,4 +157,3 @@ def expire_subscription(
     session.commit()
     session.refresh(subscription)
     return subscription
-

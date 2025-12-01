@@ -1,11 +1,11 @@
 """
 API routes for subscription management and payments.
 """
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 from datetime import datetime, timedelta
 from uuid import uuid4, UUID
-from typing import Dict, Any
 
 from app.db.session import get_session
 from app.models import User
@@ -209,16 +209,14 @@ async def webkassa_webhook(
     """
     Webhook endpoint for Webkassa.kz payment notifications.
     This should be called by Webkassa when payment status changes.
-    
+
     Note: In production, you should verify the webhook signature for security.
     """
     order_id = webhook_data.order_id
     payment_status = webhook_data.status
 
     # Find payment by order_id
-    payment = payment_crud.get_payment_by_webkassa_order_id(
-        session, order_id=order_id
-    )
+    payment = payment_crud.get_payment_by_webkassa_order_id(session, order_id=order_id)
     if not payment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found"
@@ -334,4 +332,3 @@ def check_payment_status(
         webkassa_status=payment.webkassa_status,
         order_id=payment.webkassa_order_id,
     )
-

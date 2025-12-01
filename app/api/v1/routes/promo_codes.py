@@ -1,6 +1,7 @@
 """
 API routes for promo code management (admin) and redemption (users).
 """
+
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlmodel import Session
 from datetime import datetime, timedelta
@@ -171,7 +172,9 @@ def redeem_promo_code(
 
         current_user.plan = promo_code.plan
         current_user.plan_started_at = now
-        current_user.plan_expires_at = now + timedelta(days=plan_config["duration_days"])
+        current_user.plan_expires_at = now + timedelta(
+            days=plan_config["duration_days"]
+        )
         current_user.subscription_status = "active"
 
         # Create subscription record
@@ -198,4 +201,3 @@ def redeem_promo_code(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-

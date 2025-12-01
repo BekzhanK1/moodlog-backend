@@ -9,8 +9,7 @@ load_dotenv()
 class Settings:
     def __init__(self):
         # Database settings
-        self.database_url: str = os.getenv(
-            "DATABASE_URL", "sqlite:///./moodlog.db")
+        self.database_url: str = os.getenv("DATABASE_URL", "sqlite:///./moodlog.db")
         self.database_url_prod: Optional[str] = os.getenv("DATABASE_URL_PROD")
 
         # JWT settings
@@ -34,8 +33,7 @@ class Settings:
             "MASTER_ENCRYPTION_KEY", "your-master-encryption-key-change-in-production"
         )
         self.hf_token: str = os.getenv("HF_TOKEN", "your-huggingface-token")
-        self.openai_api_key: str = os.getenv(
-            "OPENAI_API_KEY", "your-openai-api-key")
+        self.openai_api_key: str = os.getenv("OPENAI_API_KEY", "your-openai-api-key")
 
         # GOOGLE AUTH
         self.google_client_id: str = os.getenv(
@@ -60,9 +58,7 @@ class Settings:
         )
 
         # Frontend URL for payment redirects
-        self.frontend_url: str = os.getenv(
-            "FRONTEND_URL", "http://localhost:3000"
-        )
+        self.frontend_url: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
     @property
     def get_database_url(self) -> str:

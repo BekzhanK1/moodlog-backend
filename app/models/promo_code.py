@@ -1,10 +1,7 @@
-from sqlmodel import SQLModel, Field, Relationship
-from typing import Optional, TYPE_CHECKING
+from sqlmodel import SQLModel, Field
+from typing import Optional
 from datetime import datetime
 from uuid import UUID, uuid4
-
-if TYPE_CHECKING:
-    from .user import User
 
 
 class PromoCode(SQLModel, table=True):
@@ -23,4 +20,3 @@ class PromoCode(SQLModel, table=True):
     expires_at: Optional[datetime] = None  # Optional expiration date
 
     # Relationships omitted - use CRUD operations to query related users
-

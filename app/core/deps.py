@@ -1,7 +1,7 @@
 """
 Dependencies for FastAPI routes.
 """
-from typing import Optional
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlmodel import Session
@@ -69,11 +69,14 @@ def require_pro_feature(feature: str):
     Returns:
         Dependency function that raises HTTPException if feature is not available
     """
+
     def _check_feature(
         current_user: User = Depends(get_current_user),
         session: Session = Depends(get_session),
     ) -> User:
-        if not is_plan_active(current_user) or not can_use_feature(current_user, feature):
+        if not is_plan_active(current_user) or not can_use_feature(
+            current_user, feature
+        ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"This feature requires a Pro subscription. Please upgrade to access {feature}.",

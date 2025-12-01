@@ -1,6 +1,7 @@
 """
 Schemas for subscription-related API requests and responses.
 """
+
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from datetime import datetime
@@ -85,4 +86,3 @@ class WebkassaWebhookRequest(BaseModel):
     amount: Optional[float] = None
     receipt_id: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
-

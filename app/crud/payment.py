@@ -1,6 +1,7 @@
 """
 CRUD operations for Payment model.
 """
+
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
@@ -154,4 +155,3 @@ def update_payment_status(
     session.commit()
     session.refresh(payment)
     return payment
-

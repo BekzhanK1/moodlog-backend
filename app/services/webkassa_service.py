@@ -1,8 +1,9 @@
 """
 Webkassa.kz payment gateway integration service.
 """
+
 import requests
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from app.core.config import settings
 
 
@@ -131,4 +132,3 @@ class WebkassaService:
 
 # Global service instance
 webkassa_service = WebkassaService()
-

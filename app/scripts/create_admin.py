@@ -11,8 +11,7 @@ from getpass import getpass
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.db.session import engine
-from sqlmodel import Session, select
-from app.models import User
+from sqlmodel import Session
 from app.crud import user as user_crud
 from app.core.security import get_password_hash
 from app.services.encryption_key_service import create_and_store_wrapped_key
@@ -41,8 +40,10 @@ def create_admin_user():
         existing_user = user_crud.get_user_by_email(session, email=email)
         if existing_user:
             print(f"\n⚠️  User with email {email} already exists!")
-            response = input("Do you want to make this user an admin? (y/n): ").strip().lower()
-            
+            response = (
+                input("Do you want to make this user an admin? (y/n): ").strip().lower()
+            )
+
             if response == "y":
                 existing_user.is_admin = True
                 session.add(existing_user)
@@ -66,7 +67,9 @@ def create_admin_user():
             sys.exit(1)
 
         if len(password) < 8:
-            print("⚠️  Warning: Password is less than 8 characters. Consider using a stronger password.")
+            print(
+                "⚠️  Warning: Password is less than 8 characters. Consider using a stronger password."
+            )
             response = input("Continue anyway? (y/n): ").strip().lower()
             if response != "y":
                 print("❌ Cancelled.")
@@ -111,10 +114,10 @@ def create_admin_user():
         except Exception as e:
             print(f"\n❌ Error creating admin user: {e}")
             import traceback
+
             traceback.print_exc()
             sys.exit(1)
 
 
 if __name__ == "__main__":
     create_admin_user()
-

@@ -1,8 +1,9 @@
 """
 Schemas for payment-related API requests and responses.
 """
+
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional
 from datetime import datetime
 from uuid import UUID
 
@@ -31,4 +32,3 @@ class PaymentListResponse(BaseModel):
 
     payments: list[PaymentResponse]
     total: int
-
