@@ -12,7 +12,8 @@ class PromoCodeCreateRequest(BaseModel):
     """Request schema for creating a promo code."""
 
     plan: str  # "pro_month" or "pro_year"
-    code: Optional[str] = None  # Optional custom code (auto-generated if not provided)
+    # Optional custom code (auto-generated if not provided)
+    code: Optional[str] = None
     expires_at: Optional[datetime] = None  # Optional expiration date
 
 

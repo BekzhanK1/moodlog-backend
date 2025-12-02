@@ -3,18 +3,17 @@
 Script to create an admin user.
 Usage: python -m app.scripts.create_admin
 """
+from app.services.encryption_key_service import create_and_store_wrapped_key
+from app.core.security import get_password_hash
+from app.crud import user as user_crud
+from sqlmodel import Session
+from app.db.session import engine
 import sys
 from pathlib import Path
 from getpass import getpass
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from app.db.session import engine
-from sqlmodel import Session
-from app.crud import user as user_crud
-from app.core.security import get_password_hash
-from app.services.encryption_key_service import create_and_store_wrapped_key
 
 
 def create_admin_user():
