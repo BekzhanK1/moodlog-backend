@@ -36,6 +36,7 @@ def create_promo_code(
     plan: str,
     created_by: UUID,
     expires_at: Optional[datetime] = None,
+    max_uses: int = 1,
 ) -> PromoCode:
     """
     Create a new promo code.
@@ -50,6 +51,9 @@ def create_promo_code(
     Returns:
         Created PromoCode instance
     """
+    if max_uses <= 0:
+        raise ValueError("max_uses must be at least 1")
+
     if code is None:
         # Generate unique code
         max_attempts = 10
@@ -66,6 +70,8 @@ def create_promo_code(
         plan=plan,
         created_by=created_by,
         expires_at=expires_at,
+        max_uses=max_uses,
+        uses_count=0,
     )
     session.add(promo_code)
     session.commit()
@@ -155,19 +161,46 @@ def redeem_promo_code(
         Updated PromoCode instance
 
     Raises:
-        ValueError: If code is already used or expired
+        ValueError: If code is already fully used or expired
     """
-    if promo_code.is_used:
-        raise ValueError("Promo code has already been used")
-
+    # Check expiration
     if promo_code.expires_at and datetime.utcnow() > promo_code.expires_at:
         raise ValueError("Promo code has expired")
 
-    promo_code.is_used = True
+    # Check usage limits
+    if promo_code.uses_count >= promo_code.max_uses:
+        raise ValueError("Promo code usage limit has been reached")
+
+    # Apply redemption
+    promo_code.uses_count += 1
     promo_code.used_by = used_by
     promo_code.used_at = datetime.utcnow()
+
+    # Mark as used when exhausted
+    if promo_code.uses_count >= promo_code.max_uses:
+        promo_code.is_used = True
 
     session.add(promo_code)
     session.commit()
     session.refresh(promo_code)
     return promo_code
+
+
+def delete_promo_code(session: Session, *, promo_code_id: UUID) -> bool:
+    """
+    Delete a promo code by ID.
+
+    Args:
+        session: Database session
+        promo_code_id: Promo code ID to delete
+
+    Returns:
+        True if deleted, False if not found
+    """
+    promo_code = get_promo_code_by_id(session, promo_code_id=promo_code_id)
+    if not promo_code:
+        return False
+
+    session.delete(promo_code)
+    session.commit()
+    return True

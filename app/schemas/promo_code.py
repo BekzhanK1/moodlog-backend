@@ -15,6 +15,7 @@ class PromoCodeCreateRequest(BaseModel):
     # Optional custom code (auto-generated if not provided)
     code: Optional[str] = None
     expires_at: Optional[datetime] = None  # Optional expiration date
+    max_uses: int = 1  # How many times the promo code can be used
 
 
 class PromoCodeResponse(BaseModel):
@@ -24,6 +25,8 @@ class PromoCodeResponse(BaseModel):
     code: str
     plan: str
     created_by: UUID
+    max_uses: int
+    uses_count: int
     used_by: Optional[UUID] = None
     used_at: Optional[datetime] = None
     is_used: bool

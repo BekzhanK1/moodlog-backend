@@ -59,6 +59,12 @@ def create_promo_code(
                 detail="Promo code already exists",
             )
 
+    if request.max_uses <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="max_uses must be at least 1",
+        )
+
     try:
         promo_code = promo_code_crud.create_promo_code(
             session,
@@ -66,12 +72,15 @@ def create_promo_code(
             plan=request.plan,
             created_by=current_user.id,
             expires_at=request.expires_at,
+            max_uses=request.max_uses,
         )
         return PromoCodeResponse(
             id=promo_code.id,
             code=promo_code.code,
             plan=promo_code.plan,
             created_by=promo_code.created_by,
+            max_uses=promo_code.max_uses,
+            uses_count=promo_code.uses_count,
             used_by=promo_code.used_by,
             used_at=promo_code.used_at,
             is_used=promo_code.is_used,
@@ -109,6 +118,8 @@ def list_promo_codes(
                 code=pc.code,
                 plan=pc.plan,
                 created_by=pc.created_by,
+                max_uses=pc.max_uses,
+                uses_count=pc.uses_count,
                 used_by=pc.used_by,
                 used_at=pc.used_at,
                 is_used=pc.is_used,
@@ -119,6 +130,37 @@ def list_promo_codes(
         ],
         total=len(promo_codes),
     )
+
+
+@router.delete(
+    "/admin/promo-codes/{promo_code_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_promo_code(
+    promo_code_id: str,
+    current_user: User = Depends(require_admin),
+    session: Session = Depends(get_session),
+):
+    """
+    Delete a promo code by ID (Admin only).
+    """
+    # Validate UUID format
+    from uuid import UUID
+
+    try:
+        promo_code_uuid = UUID(promo_code_id)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid promo code ID"
+        )
+
+    deleted = promo_code_crud.delete_promo_code(session, promo_code_id=promo_code_uuid)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Promo code not found"
+        )
+
+    return None
 
 
 @router.post("/promo-codes/redeem", response_model=PromoCodeRedeemResponse)
