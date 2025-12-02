@@ -6,6 +6,7 @@ from app.api.v1.routes import (
     insights,
     subscriptions,
     promo_codes,
+    admin_metrics,
 )
 
 api_router = APIRouter()
@@ -19,3 +20,4 @@ api_router.include_router(
     subscriptions.router, prefix="/subscriptions", tags=["subscriptions"]
 )
 api_router.include_router(promo_codes.router, prefix="", tags=["promo codes"])
+api_router.include_router(admin_metrics.router, prefix="", tags=["admin metrics"])
